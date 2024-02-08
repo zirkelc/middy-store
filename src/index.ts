@@ -31,9 +31,10 @@ export type StoreReference = { service: string };
 // 		key: string;
 // 	};
 
-export type StorePayload = any;
+// export type StorePayload = any;
 
-const STORE_REFERENCE = '@store';
+const REFERENCE_KEY = '@store';
+const ROOT_PATH = '';
 
 type Reference = {
 	'@store': StoreReference;
@@ -47,21 +48,21 @@ export type StoreOptions = {
 	maxSize?: number;
 }
 
-export type StoreInput<TPayload extends StorePayload> = {
+export type StoreInput<TPayload = any> = {
 	byteSize: number;
 	typeOf: string;
-	payload: StorePayload;
+	payload: TPayload;
 };
 
-export type LoadInput<TReference extends StoreReference> = {
+export type LoadInput<TReference = any> = {
 	reference: TReference;
 };
 
 
-export interface Store<TReference extends StoreReference, TPayload extends StorePayload> {
-	canLoad(input: LoadInput<TReference>): boolean;
-	load(input: LoadInput<TReference>): Promise<StorePayload>;
-	canStore(input: StoreInput<TPayload>): boolean;
+export interface Store<TReference, TPayload> {
+	canLoad(input: LoadInput<unknown>): input is LoadInput<TReference>;
+	load(input: LoadInput<TReference>): Promise<TPayload>;
+	canStore(input: StoreInput<unknown>): boolean;
 	store(input: StoreInput<TPayload>): Promise<StoreReference>;
 }
 
@@ -70,10 +71,12 @@ type MiddlewareOptions = {
 	selector?: Selector; // multiple selectors?
 	maxSize?: number;
 	passThrough?: boolean;
+	logger?: ((message: string) => void);
 }
 
 const DEFAULT_MAX_SIZE = 256 * 1024; // 256KB
 const DEFAULT_SELECTOR: Selector = "";
+const DEFAULT_DUMMY_LOGGER = (message: string) => { };
 
 const defaultOtions: Partial<MiddlewareOptions> = {
 	maxSize: 256 * 1024, // 256KB 
@@ -90,7 +93,7 @@ const calculateByteSize = (payload: any) => {
 }
 
 type SelectPayloadResult = {
-	payload: StorePayload;
+	payload: any;
 	path: string;
 };
 const selectPayload = (result: any, selector: Selector): SelectPayloadResult => {
@@ -100,14 +103,18 @@ const selectPayload = (result: any, selector: Selector): SelectPayloadResult => 
 	return { payload, path };
 }
 
-const replacePayloadWithReference = (result: any, path: string, storeReference: StoreReference) => {
-	const reference: Reference = { [STORE_REFERENCE]: storeReference };
+const replacePayloadWithReference = (result: any, path: string, storeReference: any) => {
+	const reference: Reference = { [REFERENCE_KEY]: storeReference };
 
-	set(result, path, reference);
+	return path === ROOT_PATH
+		? reference
+		: set(result, path, reference);
 }
 
-const replaceReferenceWithPayload = (result: any, path: string, storePayload: StorePayload) => {
-	set(result, path, storePayload);
+const replaceReferenceWithPayload = (result: any, path: string, storePayload: any) => {
+	return path === ROOT_PATH
+		? storePayload
+		: set(result, path, storePayload);
 }
 
 type FindReferenceResult = {
@@ -124,11 +131,12 @@ const findReference = (result: any): FindReferenceResult | undefined => {
 		for (const key in obj) {
 			if (obj[key] === null || typeof obj[key] !== 'object') continue;
 
-			if (obj[key][STORE_REFERENCE]) {
-				return { reference: obj[key][STORE_REFERENCE], path: path + '.' + key };
-			}
+			const nextPath = path ? `${path}.${key}` : key;
 
-			const result = findReferenceIn(obj[key], path + '.' + key);
+			if (obj[key][REFERENCE_KEY])
+				return { reference: obj[key][REFERENCE_KEY], path: nextPath };
+
+			const result = findReferenceIn(obj[key], nextPath);
 			if (result) return result;
 		}
 	}
@@ -158,6 +166,7 @@ const middleware = <TEvent, TResult>(opts: MiddlewareOptions): middy.MiddlewareO
 	const { stores, passThrough } = opts;
 	const selector = opts.selector ?? DEFAULT_SELECTOR;
 	const maxSize = opts.maxSize ?? DEFAULT_MAX_SIZE;
+	const logger = opts.logger ?? DEFAULT_DUMMY_LOGGER;
 
 	const before: middy.MiddlewareFn<TEvent, TResult> = async (request) => {
 		const { event: input, context } = request
@@ -166,6 +175,7 @@ const middleware = <TEvent, TResult>(opts: MiddlewareOptions): middy.MiddlewareO
 		// if it does, load the payload from the store
 		// if it doesn't, leave the event untouched
 		const { reference, path } = findReference(input) ?? { reference: undefined, path: undefined };
+		logger(reference ? `Found reference in input at path "${path}"` : `No reference found in input`);
 		if (!reference) return;
 
 		const loadInput = { reference };
@@ -173,17 +183,23 @@ const middleware = <TEvent, TResult>(opts: MiddlewareOptions): middy.MiddlewareO
 		// find a store that can load the reference
 		const store = stores.find((store) => store.canLoad(loadInput));
 		if (!store) {
+			logger(passThrough ? `No store was found to load reference, passthrough input` : `No store was found to load reference, throwing error`);
+
 			if (passThrough) return;
-			throw new Error(`No store can load reference at ${path}: ${JSON.stringify(reference)}`);
+			throw new Error(`No store can load reference: ${JSON.stringify(reference)}`);
 		}
+
+		logger(`Found store to load reference`);
 
 		// load the payload from the store
 		const payload = await store.load(loadInput);
 
-		// replace the reference with the payload
-		replaceReferenceWithPayload(input, path, payload);
+		logger(`Loaded payload`);
 
-		request.event = input
+		// replace the reference with the payload
+		request.event = replaceReferenceWithPayload(input, path, payload);
+
+		logger(`Replaced reference with payload`);
 	}
 
 	const after: middy.MiddlewareFn<TEvent, TResult> = async (request) => {
@@ -194,31 +210,47 @@ const middleware = <TEvent, TResult>(opts: MiddlewareOptions): middy.MiddlewareO
 		// if it doesn't, leave the response untouched
 		// if maxSize is 0, always store the response in the store
 		const byteSize = calculateByteSize(output);
-		if (maxSize > 0 && byteSize < maxSize) return;
+		if (maxSize > 0 && byteSize < maxSize) {
+			logger(`Output size of ${byteSize} bytes is less than max size of ${maxSize}, skipping store`);
+			return;
+		}
+
+		logger(`Output size of ${byteSize} bytes exceeds max size of ${maxSize}`);
 
 		// select payload to be stored
 		// if no selector is specified, store the entire response
 		// if a selector is specified, use it to select the payload to be stored
 		const { payload, path } = selectPayload(output, selector);
 
-		const storeInput = { payload, byteSize, typeOf: typeof payload };
+		const storeInput = {
+			payload,
+			byteSize: calculateByteSize(payload),
+			typeOf: typeof payload
+		};
+
+		logger(`Selected payload at path "${path}" with size ${storeInput.byteSize} bytes and type "${storeInput.typeOf}"`);
 
 		// find a store that can store the payload 
 		// if there are multiple stores, store the response in the first store that accepts the response
 		// if no store accepts the response, leave the response untouched
 		const store = stores.find((store) => store.canStore(storeInput));
 		if (!store) {
+			logger(passThrough ? `No store was found to store payload, passthrough response` : `No store was found to store payload at ${path}, throwing error`);
 			if (passThrough) return;
-			throw new Error(`No store can store payload at ${path}: ${JSON.stringify(payload)}`);
+			throw new Error(`No store can store payload`);
 		}
+
+		logger(`Found store to store payload`);
 
 		// store the payload in the store
 		const storedPayload = await store.store(storeInput);
 
-		// replace the response with a reference to the stored response
-		replacePayloadWithReference(output, path, storedPayload);
+		logger(`Stored payload`);
 
-		request.response = output
+		// replace the response with a reference to the stored response
+		request.response = replacePayloadWithReference(output, path, storedPayload);
+
+		logger(`Replaced payload with reference at path "${path}"`);
 	}
 
 	// const onError = async (request) => {

@@ -5,22 +5,22 @@ import {
 	PutObjectCommandInput,
 	S3Client
 } from '@aws-sdk/client-s3';
-import type { LoadInput, Store, StoreInput, StoreOptions, StorePayload, StoreReference } from "..";
+import type { LoadInput, Store, StoreInput, StoreOptions } from "../index.js";
 
-export interface S3StoreReference extends StoreReference {
+export interface S3StoreReference {
 	service: 's3';
 	bucket: string;
 	key: string;
 	uri: string;
 }
 
-export interface S3StoreOptions<TPaylod extends StorePayload> extends StoreOptions {
+export interface S3StoreOptions<TPaylod = any> extends StoreOptions {
 	bucket: string | ((input: StoreInput<TPaylod>) => string);
 	key: string | ((input: StoreInput<TPaylod>) => string);
 	// uriFormat?: 's3' | 's3+http' | 's3+https'; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
 }
 
-export class S3Store<TPayload extends StorePayload> implements Store<S3StoreReference, TPayload> {
+export class S3Store<TPayload = any> implements Store<S3StoreReference, TPayload> {
 	readonly service = 's3';
 	readonly maxSize = Number.POSITIVE_INFINITY;
 
@@ -35,20 +35,25 @@ export class S3Store<TPayload extends StorePayload> implements Store<S3StoreRefe
 		this.#key = opts.key;
 	}
 
-	canLoad({ reference }: LoadInput<S3StoreReference>): boolean {
-		if (reference.service !== this.service) return false;
+	canLoad(input: LoadInput<unknown>): input is LoadInput<S3StoreReference> {
+		if (typeof input.reference !== 'object' || input.reference === null) return false;
+		if (!('service' in input.reference)) return false;
 
-		if (!this.isValidBucket(reference.bucket))
-			throw new Error(`Invalid bucket. Must be a string, but received: ${reference.bucket}`);
+		const { service } = input.reference;
+		if (service !== this.service) return false;
 
-		if (!this.isValidKey(reference.key))
-			throw new Error(`Invalid key. Must be a string, but received: ${reference.key}`);
+		const { bucket, key } = input.reference as S3StoreReference;
+		if (!this.isValidBucket(bucket))
+			throw new Error(`Invalid bucket. Must be a string, but received: ${bucket}`);
+
+		if (!this.isValidKey(key))
+			throw new Error(`Invalid key. Must be a string, but received: ${key}`);
 
 		return true;
 	}
 
-	async load({ reference }: LoadInput<S3StoreReference>): Promise<TPayload> {
-		const { bucket, key } = reference;
+	async load(input: LoadInput<S3StoreReference>): Promise<TPayload> {
+		const { bucket, key } = input.reference;
 		const result = await this.#client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
 
 		const payload = await this.deserializePayload(result);
@@ -56,19 +61,20 @@ export class S3Store<TPayload extends StorePayload> implements Store<S3StoreRefe
 		return payload;
 	}
 
-	canStore({ byteSize, typeOf }: StoreInput<TPayload>): boolean {
-		return byteSize <= this.maxSize;
+	canStore(input: StoreInput<unknown>): boolean {
+		return input.byteSize <= this.maxSize;
 	}
 
-	public async store({ payload }: StoreInput<TPayload>): Promise<S3StoreReference> {
-		const bucket = typeof this.#bucket === 'function' ? this.#bucket(payload) : this.#bucket;
+	public async store(input: StoreInput<TPayload>): Promise<S3StoreReference> {
+		const bucket = typeof this.#bucket === 'function' ? this.#bucket(input) : this.#bucket;
 		if (!this.isValidBucket(bucket))
 			throw new Error(`Invalid bucket. Must be a string, but received: ${bucket}`);
 
-		const key = typeof this.#key === 'function' ? this.#key(payload) : this.#key
+		const key = typeof this.#key === 'function' ? this.#key(input) : this.#key
 		if (!this.isValidKey(key))
 			throw new Error(`Invalid key. Must be a string, but received: ${key}`);
 
+		const { payload } = input;
 		if (!this.isValidPayload(payload))
 			throw new Error(`Invalid payload. Must be string or object, but received type: ${typeof payload}`);
 
