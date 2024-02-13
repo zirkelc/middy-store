@@ -54,7 +54,7 @@ export type MiddlewareOptions = {
 
 const DEFAULT_MAX_SIZE = 256 * 1024; // 256KB
 const DEFAULT_SELECTOR: Selector = [];
-const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
+const DEFAULT_DUMMY_LOGGER = (...args: any[]) => { };
 
 /**
  * Takes an input payload and checks if it exceeds the maximum allowed size of 256KB.

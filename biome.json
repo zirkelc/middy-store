@@ -6,7 +6,21 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true
+			"recommended": true,
+			"style": {
+				"noUnusedTemplateLiteral": "off"
+			},
+			"suspicious": {
+				"noExplicitAny": "off"
+			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"include": [
+				"*.test.ts"
+			],
+			"linter": {}
+		}
+	]
 }

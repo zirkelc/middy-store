@@ -2,7 +2,7 @@
   "name": "s3",
   "private": true,
   "type": "module",
-  "module": "handler.ts",
+  "main": "handler.ts",
   "scripts": {
     "start": "tsx handler"
   },
@@ -10,9 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@middy/core": "^5.2.3",
-    "middy-input-output-store": "workspace:*",
-    "middy-input-output-store-base64": "workspace:*"
+    "@middy/core": "^5.2.3"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.133"

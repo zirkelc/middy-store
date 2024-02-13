@@ -1,7 +1,7 @@
 import middy from '@middy/core'
 import type { Handler, APIGatewayProxyEventV2, Context } from 'aws-lambda'
-import { store } from '../../packages/core/src/index.js';
-import { Base64Store } from '../../packages/store-base64/src/index.js';
+import { store } from 'middy-input-output-store';
+import { Base64Store } from 'middy-input-output-store-base64';
 
 const lambdaHandler: Handler<APIGatewayProxyEventV2> = async (input, context) => {
 	console.log('input in handler', input)

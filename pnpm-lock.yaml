@@ -57,16 +57,16 @@ importers:
       '@middy/core':
         specifier: ^5.2.3
         version: 5.2.3
-      middy-input-output-store:
-        specifier: workspace:*
-        version: link:../../packages/core
-      middy-input-output-store-base64:
-        specifier: workspace:*
-        version: link:../../packages/store-base64
     devDependencies:
       '@types/aws-lambda':
         specifier: ^8.10.133
         version: 8.10.133
+
+  examples/s3:
+    dependencies:
+      test:
+        specifier: workspace:*
+        version: link:../../packages/test
 
   packages/core:
     dependencies:
@@ -107,6 +107,8 @@ importers:
       middy-input-output-store:
         specifier: workspace:*
         version: link:../core
+
+  packages/test: {}
 
 packages:
 
