@@ -1,0 +1,17 @@
+{
+  "name": "middy-input-output-store-base64",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "module": "./src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "middy-input-output-store": "workspace:*"
+  },
+  "devDependencies": {}
+}

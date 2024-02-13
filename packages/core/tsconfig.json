@@ -1,7 +1,4 @@
 {
   "extends": "@tsconfig/node18",
   "compilerOptions": {},
-  "include": [
-    "**/*.ts"
-  ]
 }

@@ -1,0 +1,25 @@
+{
+  "name": "middy-input-output-store",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "module": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@middy/core": "^5.2.3",
+    "lodash.get": "^4.4.2",
+    "lodash.set": "^4.3.2",
+    "lodash.topath": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/lodash.get": "^4.4.9",
+    "@types/lodash.set": "^4.3.9",
+    "@types/lodash.topath": "^4.5.9"
+  }
+}

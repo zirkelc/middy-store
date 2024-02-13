@@ -1,5 +1,6 @@
 {
-  "name": "middy-store",
+  "name": "middy-input-output-store-root",
+  "private": true,
   "version": "1.0.0",
   "description": "",
   "type": "module",
@@ -17,7 +18,9 @@
     }
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest",
+    "lint": "biome lint packages --apply",
+    "format": "biome format packages --write"
   },
   "keywords": [],
   "author": "",
@@ -29,11 +32,15 @@
     "lodash.set": "^4.3.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.5.3",
     "@tsconfig/node18": "^18.2.2",
+    "@types/aws-lambda": "^8.10.133",
     "@types/lodash.get": "^4.4.9",
     "@types/lodash.set": "^4.3.9",
     "@types/node": "^20.11.16",
+    "ts-node": "^10.9.2",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
   }
 }
