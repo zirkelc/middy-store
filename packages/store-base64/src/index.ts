@@ -1,7 +1,7 @@
 import {
 	LoadInput,
 	Store,
-	StoreInput,
+	StoreOutput,
 	StoreOptions,
 	tryParseJSON,
 } from "middy-input-output-store";
@@ -13,14 +13,14 @@ export interface Base64StoreReference {
 
 export type Base4StorePayload = any;
 
-export interface Base64StoreOptions<TPaylod = any> extends StoreOptions {}
+export interface Base64StoreOptions<TPaylod = any> extends StoreOptions { }
 
 export class Base64Store
 	implements Store<Base64StoreReference, Base4StorePayload>
 {
 	readonly name = "base64" as const;
 
-	constructor(opts?: Base64StoreOptions<Base4StorePayload>) {}
+	constructor(opts?: Base64StoreOptions<Base4StorePayload>) { }
 
 	canLoad(input: LoadInput<unknown>): input is LoadInput<Base64StoreReference> {
 		if (typeof input.reference !== "object" || input.reference === null)
@@ -43,23 +43,22 @@ export class Base64Store
 		input: LoadInput<Base64StoreReference>,
 	): Promise<Base4StorePayload> {
 		const { base64 } = input.reference;
-		const data = Buffer.from(base64, "base64").toString("utf8");
+		const str = Buffer.from(base64, "base64").toString("utf8");
+		const payload = tryParseJSON(str);
 
-		return tryParseJSON(data) ?? data;
+		return payload === false ? str : payload;
 	}
 
-	canStore(input: StoreInput<unknown>): boolean {
-		return typeof input.payload === "object" && input.payload !== null;
+	canStore(output: StoreOutput<unknown>): boolean {
+		return typeof output.payload === "object" && output.payload !== null;
 	}
 
 	public async store(
-		input: StoreInput<Base4StorePayload>,
+		output: StoreOutput<Base4StorePayload>,
 	): Promise<Base64StoreReference> {
-		const data =
-			typeof input.payload === "object"
-				? JSON.stringify(input.payload)
-				: input.payload;
-		const base64 = Buffer.from(data).toString("base64");
+		const { payload } = output;
+		const str = typeof payload === "object" ? JSON.stringify(payload) : payload;
+		const base64 = Buffer.from(str).toString("base64");
 
 		return {
 			store: this.name,

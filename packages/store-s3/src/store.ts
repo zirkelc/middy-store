@@ -8,7 +8,7 @@ import {
 import type {
 	LoadInput,
 	Store,
-	StoreInput,
+	StoreOutput,
 	StoreOptions,
 } from "middy-input-output-store";
 
@@ -20,8 +20,8 @@ export interface S3StoreReference {
 }
 
 export interface S3StoreOptions<TPaylod = any> extends StoreOptions {
-	bucket: string | ((input: StoreInput<TPaylod>) => string);
-	key: string | ((input: StoreInput<TPaylod>) => string);
+	bucket: string | (() => string);
+	key: string | (() => string);
 	// uriFormat?: 's3' | 's3+http' | 's3+https'; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
 }
 
@@ -32,25 +32,35 @@ export class S3Store<TPayload = any>
 
 	#maxSize: number;
 	#client: S3Client;
-	#bucket: string | ((input: StoreInput<TPayload>) => string);
-	#key: string | ((input: StoreInput<TPayload>) => string);
+	#bucket: () => string;
+	#key: () => string;
 
 	constructor(opts: S3StoreOptions<TPayload>) {
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#client = new S3Client({});
-		this.#bucket = opts.bucket;
-		this.#key = opts.key;
+		this.#bucket =
+			typeof opts.bucket === "string"
+				? () => opts.bucket as string
+				: opts.bucket;
+		this.#key =
+			typeof opts.key === "string" ? () => opts.key as string : opts.key;
 	}
 
 	canLoad(input: LoadInput<unknown>): boolean {
-		if (typeof input.reference !== "object" || input.reference === null)
+		if (input === null || input === undefined || typeof input !== "object")
 			return false;
-		if (!("store" in input.reference)) return false;
 
-		const { store } = input.reference;
+		const { reference } = input;
+		if (
+			reference === null ||
+			reference === undefined ||
+			typeof reference !== "object"
+		)
+			return false;
+
+		const { store, bucket, key } = reference as S3StoreReference;
 		if (store !== this.name) return false;
 
-		const { bucket, key } = input.reference as S3StoreReference;
 		if (!this.isValidBucket(bucket))
 			throw new Error(
 				`Invalid bucket. Must be a string, but received: ${bucket}`,
@@ -73,27 +83,29 @@ export class S3Store<TPayload = any>
 		return payload;
 	}
 
-	canStore(input: StoreInput<unknown>): boolean {
-		return input.byteSize <= this.#maxSize;
-	}
+	canStore(output: StoreOutput<unknown>): boolean {
+		if (output.payload === null) return false;
+		if (this.#maxSize === 0) return false;
+		if (output.byteSize > this.#maxSize) return false;
+		if (output.typeOf !== "string" && output.typeOf !== "object") return false;
 
-	public async store(input: StoreInput<TPayload>): Promise<S3StoreReference> {
-		const bucket =
-			typeof this.#bucket === "function" ? this.#bucket(input) : this.#bucket;
+		const bucket = this.#bucket();
 		if (!this.isValidBucket(bucket))
 			throw new Error(
 				`Invalid bucket. Must be a string, but received: ${bucket}`,
 			);
 
-		const key = typeof this.#key === "function" ? this.#key(input) : this.#key;
+		const key = this.#key();
 		if (!this.isValidKey(key))
 			throw new Error(`Invalid key. Must be a string, but received: ${key}`);
 
-		const { payload } = input;
-		if (!this.isValidPayload(payload))
-			throw new Error(
-				`Invalid payload. Must be string or object, but received type: ${typeof payload}`,
-			);
+		return true;
+	}
+
+	public async store(output: StoreOutput<TPayload>): Promise<S3StoreReference> {
+		const bucket = this.#bucket();
+		const key = this.#key();
+		const { payload } = output;
 
 		await this.#client.send(
 			new PutObjectCommand({
@@ -112,15 +124,11 @@ export class S3Store<TPayload = any>
 	}
 
 	private isValidKey(key: unknown) {
-		return typeof key !== "string" || key.length === 0;
+		return typeof key === "string" && key.length > 0;
 	}
 
 	private isValidBucket(bucket: unknown) {
 		return typeof bucket === "string" && bucket.length > 0;
-	}
-
-	private isValidPayload(payload: unknown) {
-		return typeof payload === "string" || typeof payload === "object";
 	}
 
 	private serizalizePayload(payload: TPayload): Partial<PutObjectCommandInput> {

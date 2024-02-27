@@ -5,7 +5,7 @@ import store, {
 	LoadInput,
 	MiddlewareOptions,
 	Store,
-	StoreInput,
+	StoreOutput,
 } from "./store.js";
 import { before } from "node:test";
 import set from "lodash.set";
@@ -35,7 +35,7 @@ const mockLoadInput: LoadInput = {
 	reference: mockReference,
 };
 
-const mockStoreInput: StoreInput = {
+const mockStoreInput: StoreOutput = {
 	payload: mockPayload,
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
 	typeOf: typeof mockPayload,
@@ -54,7 +54,7 @@ before(() => {
 });
 
 describe("middleware.before", () => {
-	test.each([null, "foo", 42, true, false, () => {}])(
+	test.each([null, "foo", 42, true, false, () => { }])(
 		"should passthrough input if is: %s",
 		async (input) => {
 			const handler = useHandler({
@@ -156,7 +156,7 @@ describe("middleware.before", () => {
 });
 
 describe("middleware.after", () => {
-	test.each([null, "foo", 42, true, false, () => {}])(
+	test.each([null, "foo", 42, true, false, () => { }])(
 		"should passthrough output if is: %s",
 		async (input) => {
 			const handler = useHandler({

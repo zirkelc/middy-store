@@ -1,6 +1,6 @@
 import middy from '@middy/core'
 import type { Handler, APIGatewayProxyEventV2, Context } from 'aws-lambda'
-import { store } from 'middy-input-output-store';
+import { loadInput, storeOutput } from 'middy-input-output-store';
 import { Base64Store } from 'middy-input-output-store-base64';
 
 const lambdaHandler: Handler<APIGatewayProxyEventV2> = async (input, context) => {
@@ -9,23 +9,34 @@ const lambdaHandler: Handler<APIGatewayProxyEventV2> = async (input, context) =>
 	return input;
 }
 
-// const store = new Base64Store();
+const store = new Base64Store();
 
 export const handler = middy()
-	.use(store({
-		logger: console.log,
-		maxSize: 0,
+	.use(loadInput({
+		// logger: console.log,
 		stores: [
-			new Base64Store(),
+			store
+		]
+	}))
+	.use(storeOutput({
+		// logger: console.log,
+		stores: [
+			store
 		]
 	}))
 	.handler(lambdaHandler);
+
+const payload = {
+	foo: 'bar'
+};
+const base64 = Buffer.from(JSON.stringify(payload)).toString('base64');
+console.log('base64', base64);
 
 const context = {} as Context;
 const input = {
 	'@store': {
 		store: 'base64',
-		base64: 'SGVsbG8gV29ybGQ=' // Hello World
+		base64: 'eyJmb28iOiJiYXIifQ==' // {"foo": "bar"}
 	}
 };
 

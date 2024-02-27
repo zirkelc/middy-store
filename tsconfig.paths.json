@@ -1,16 +1,16 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "middy-input-output-store": [
-        "./packages/core/src/index.ts"
-      ],
-      "middy-input-output-store-base64": [
-        "./packages/store-base64/src/index.ts"
-      ],
-      "middy-input-output-store-s3": [
-        "./packages/store-base64/src/index.ts"
-      ]
-    }
+    //   "baseUrl": ".",
+    //   "paths": {
+    //     "middy-input-output-store": [
+    //       "./packages/core/src/index.ts"
+    //     ],
+    //     "middy-input-output-store-base64": [
+    //       "./packages/store-base64/src/index.ts"
+    //     ],
+    //     "middy-input-output-store-s3": [
+    //       "./packages/store-base64/src/index.ts"
+    //     ]
+    //   }
   }
 }

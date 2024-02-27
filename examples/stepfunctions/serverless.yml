@@ -1,0 +1,86 @@
+service: middy-store-example-stepfunctions
+frameworkVersion: "3"
+
+plugins:
+  - serverless-esbuild
+  - serverless-step-functions
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  environment:
+    PAYLOAD_BUCKET: !Ref PayloadBucket
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "s3:PutObject"
+            - "s3:GetObject"
+          Resource: 
+            - "arn:aws:s3:::${self:service}-payload/*"
+            - "arn:aws:s3:::${self:service}-payload"
+
+functions:
+  GenerateLargePayload:
+    handler: handler.GenerateLargePayloadHandler
+  PrintLargePayload:
+    handler: handler.PrintLargePayloadHandler    
+  LoopGenerateLargePayload:
+    handler: handler.LoopGenerateLargePayloadHandler    
+  LoopPrintLargePayload:
+    handler: handler.LoopPrintLargePayloadHandler
+
+stepFunctions:
+  stateMachines:
+    LargePayloadStateMachine:
+      name: LargePayloadStateMachine
+      definition:
+        StartAt: Start
+        States:
+          Start:
+            Type: Parallel
+            End: true
+            Branches:
+              - StartAt: GenerateLargePayload
+                States:
+                  GenerateLargePayload:
+                    Type: Task
+                    Resource:
+                      Fn::GetAtt: [GenerateLargePayload, Arn]
+                    Next: PrintLargePayload
+                  PrintLargePayload:
+                    Type: Task
+                    Resource:
+                      Fn::GetAtt: [PrintLargePayload, Arn]            
+                    End: true
+              - StartAt: SetCounter
+                States:
+                  SetCounter:
+                    Type: Pass
+                    Result: 0
+                    ResultPath: $.counter
+                    Next: LoopGenerateLargePayload
+                  LoopGenerateLargePayload:
+                    Type: Task
+                    Resource:
+                      Fn::GetAtt: [LoopGenerateLargePayload, Arn]
+                    Next: CheckCounter
+                  CheckCounter:
+                    Type: Choice
+                    Choices:
+                      - Variable: $.counter
+                        NumericLessThan: 5
+                        Next: LoopGenerateLargePayload
+                    Default: LoopPrintLargePayload
+                  LoopPrintLargePayload:
+                    Type: Task
+                    Resource:
+                      Fn::GetAtt: [LoopPrintLargePayload, Arn]            
+                    End: true
+resources:
+  Resources:
+    PayloadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-payload
