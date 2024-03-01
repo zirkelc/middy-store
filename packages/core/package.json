@@ -1,6 +1,6 @@
 {
   "name": "middy-store",
-  "version": "1.0.0",
+  "version": "0.0.0-alpha.0",
   "description": "",
   "repository": "https://github.com/zirkelc/middy-store.git",
   "type": "module",
@@ -16,7 +16,6 @@
     "dist"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
     "main": "./dist/index.js",
     "module": "./dist/index.cjs",
     "exports": {
