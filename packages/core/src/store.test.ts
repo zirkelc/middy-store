@@ -14,15 +14,19 @@ import {
 
 const context = {} as Context;
 
-const lambdaHandler: Handler = async (input, context) => {
-	return input;
-};
-
 const useLoadInput = (options: LoadInputMiddlewareOptions) =>
-	middy().use(loadInput(options)).handler(lambdaHandler);
+	middy()
+		.use(loadInput(options))
+		.handler(async (input, context) => {
+			return input;
+		});
 
 const useStoreOutput = (options: StoreOutputMiddlewareOptions) =>
-	middy().use(storeOutput(options)).handler(lambdaHandler);
+	middy()
+		.use(storeOutput(options))
+		.handler(async (input, context) => {
+			return input;
+		});
 
 const mockReference = {
 	store: "mock",

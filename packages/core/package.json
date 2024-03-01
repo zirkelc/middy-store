@@ -2,6 +2,7 @@
   "name": "middy-store",
   "version": "1.0.0",
   "description": "",
+  "repository": "https://github.com/zirkelc/middy-store.git",
   "type": "module",
   "main": "./src/index.ts",
   "module": "./src/index.ts",
@@ -12,6 +13,7 @@
     }
   },
   "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
     "main": "./dist/index.js",
     "module": "./dist/index.cjs",
     "exports": {
@@ -24,7 +26,8 @@
   "scripts": {
     "test": "vitest",
     "build": "tsc --noEmit",
-    "bundle": "tsup ./src/index.ts --format cjs,esm --dts --clean"
+    "bundle": "tsup ./src/index.ts --format cjs,esm --dts --clean",
+    "prepublishOnly": "pnpm run build && pnpm run bundle"
   },
   "keywords": [],
   "author": "",

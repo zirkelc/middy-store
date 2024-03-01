@@ -5,7 +5,7 @@
 	},
 	"linter": {
 		"enabled": true,
-		"ignore": ["dist"],
+		"ignore": ["dist", "node_modules"],
 		"rules": {
 			"recommended": true,
 			"style": {
