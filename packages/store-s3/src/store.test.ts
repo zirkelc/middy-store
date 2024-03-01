@@ -1,18 +1,13 @@
-import middy from "@middy/core";
-import { Context, Handler } from "aws-lambda";
-import { before } from "node:test";
-import { describe, expect, test, vi } from "vitest";
-import { S3Store, S3StoreReference } from "./store.js";
-import { LoadInput, StoreInput } from "middy-input-output-store";
 import {
-	GetObjectOutput,
 	GetObjectCommandOutput,
+	GetObjectRequest,
 	PutObjectRequest,
 	S3Client,
-	GetObjectRequest,
-	GetObjectCommandInput,
 } from "@aws-sdk/client-s3";
+import { LoadInput, StoreOutput } from "middy-store";
 import { ReadableStream } from "stream/web";
+import { beforeAll, describe, expect, test, vi } from "vitest";
+import { S3Store, S3StoreReference } from "./store.js";
 
 const bucket = "bucket";
 const key = "key";
@@ -37,13 +32,13 @@ const mockLoadInput: LoadInput = {
 	reference: mockReference,
 };
 
-const mockStoreInput: StoreInput = {
+const mockStoreOutput: StoreOutput = {
 	payload: mockPayload,
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
 	typeOf: typeof mockPayload,
 };
 
-before(() => {
+beforeAll(() => {
 	vi.resetAllMocks();
 });
 
@@ -200,7 +195,7 @@ describe("S3Store.canStore", () => {
 	test.each(["foo", { foo: "bar" }])(
 		"should return true for payload type: %s",
 		async (payload) => {
-			const input = { ...mockStoreInput, payload, typeOf: typeof payload };
+			const input = { ...mockStoreOutput, payload, typeOf: typeof payload };
 			const output = s3Store.canStore(input);
 			expect(output).toBe(true);
 		},
@@ -209,7 +204,7 @@ describe("S3Store.canStore", () => {
 	test.each([null, undefined, 42, true, false, () => {}])(
 		"should return false for payload type: %s",
 		async (payload) => {
-			const input = { ...mockStoreInput, payload, typeOf: typeof payload };
+			const input = { ...mockStoreOutput, payload, typeOf: typeof payload };
 			const output = s3Store.canStore(input);
 			expect(output).toBe(false);
 		},
@@ -218,7 +213,7 @@ describe("S3Store.canStore", () => {
 	test.each([0, 1_000, 1_000_000, 1_000_000_000, Number.MAX_SAFE_INTEGER])(
 		"should return true for options.maxSize > payload size: %s",
 		async (byteSize) => {
-			const input = { ...mockStoreInput, byteSize };
+			const input = { ...mockStoreOutput, byteSize };
 			const output = s3Store.canStore(input);
 			expect(output).toBe(true);
 		},
@@ -229,7 +224,7 @@ describe("S3Store.canStore", () => {
 		async (byteSize) => {
 			const s3Store = new S3Store({ bucket, key, maxSize: 0 });
 
-			const input = { ...mockStoreInput, byteSize };
+			const input = { ...mockStoreOutput, byteSize };
 			const output = s3Store.canStore(input);
 			expect(output).toBe(false);
 		},
@@ -240,7 +235,7 @@ describe("S3Store.canStore", () => {
 		async (bucket) => {
 			const s3Store = new S3Store({ bucket: bucket as any, key });
 
-			const input = mockStoreInput;
+			const input = mockStoreOutput;
 
 			expect(() => s3Store.canStore(input)).toThrowError();
 		},
@@ -251,7 +246,7 @@ describe("S3Store.canStore", () => {
 		async (key) => {
 			const s3Store = new S3Store({ bucket, key: key as any });
 
-			const input = mockStoreInput;
+			const input = mockStoreOutput;
 
 			expect(() => s3Store.canStore(input)).toThrowError();
 		},
@@ -269,7 +264,7 @@ describe("S3Store.store", () => {
 	test("should store string payload", async () => {
 		const spy = mockClient();
 		const payload = "foo";
-		const input = { ...mockStoreInput, payload, typeOf: typeof payload };
+		const input = { ...mockStoreOutput, payload, typeOf: typeof payload };
 
 		const output = await s3Store.store(input);
 
@@ -288,7 +283,7 @@ describe("S3Store.store", () => {
 	test("should store object payload", async () => {
 		const spy = mockClient();
 		const payload = { foo: "bar" };
-		const input = { ...mockStoreInput, payload, typeOf: typeof payload };
+		const input = { ...mockStoreOutput, payload, typeOf: typeof payload };
 
 		const output = await s3Store.store(input);
 
@@ -307,7 +302,7 @@ describe("S3Store.store", () => {
 	test("should throw an error for unsupported types", async () => {
 		const spy = mockClient();
 		const payload = undefined;
-		const input = { ...mockStoreInput, payload, typeOf: typeof payload };
+		const input = { ...mockStoreOutput, payload, typeOf: typeof payload };
 
 		const output = s3Store.store(input);
 

@@ -1,7 +1,7 @@
+import get from "lodash.get";
 import set from "lodash.set";
 import toPath from "lodash.topath";
-import type { Selector, Reference } from "./store.js";
-import get from "lodash.get";
+import type { Reference, Replacer, Selector } from "./store.js";
 
 const REFERENCE_KEY = "@store";
 
@@ -32,29 +32,42 @@ export function calculateByteSize(payload: any) {
 	throw new Error(`Unsupported payload type: ${typeof payload}`);
 }
 
-type SelectPayloadResult = {
-	payload: any;
-	path: Array<string>;
+type SelectPayloadArgs = {
+	output: Record<string, any>;
+	selector: Selector;
 };
+export function selectPayload({ output, selector }: SelectPayloadArgs): any {
+	if (typeof selector === "function") {
+		return selector({ output });
+	}
 
-export function selectPayload(
-	result: Record<string, any>,
-	selector: Selector,
-): SelectPayloadResult {
 	const path = toPath(selector);
-	const payload = path.length === 0 ? result : get(result, path);
+	const payload = path.length === 0 ? output : get(output, path);
 
-	return { payload, path };
+	return payload;
 }
 
-export function replacePayloadWithReference(
-	result: Record<string, any>,
-	path: Array<string>,
-	storeReference: any,
-): Record<string, any> {
+type ReplacePayloadWithReferenceArgs = {
+	input: any;
+	output: any;
+	storeReference: any;
+	replacer: Replacer;
+};
+export function replacePayloadWithReference({
+	input,
+	output,
+	storeReference,
+	replacer,
+}: ReplacePayloadWithReferenceArgs): Record<string, any> {
 	const reference: Reference = { [REFERENCE_KEY]: storeReference };
 
-	return path.length === 0 ? reference : set(result, path, reference);
+	if (typeof replacer === "function") {
+		return replacer({ output, input, reference });
+	}
+
+	const path = toPath(replacer);
+
+	return path.length === 0 ? reference : set(output, path, reference);
 }
 
 export function replaceReferenceWithPayload(
@@ -70,23 +83,52 @@ type FindReferenceResult = {
 	path: Array<string>;
 };
 
-export function findReference(
+// export function findReferences(
+// 	result: Record<string, any>,
+// 	path: Array<string> = [],
+// ): FindReferenceResult | undefined {
+// 	if (result === null || typeof result !== "object") return;
+// 	if (result[REFERENCE_KEY]) return { reference: result[REFERENCE_KEY], path };
+
+// 	for (const key in result) {
+// 		if (result[key] === null || typeof result[key] !== "object") continue;
+
+// 		// const nextPath = path ? `${path}.${key}` : key;
+// 		const nextPath = path.concat(key);
+
+// 		if (result[key][REFERENCE_KEY])
+// 			return { reference: result[key][REFERENCE_KEY], path: nextPath };
+
+// 		const nextResult = findReferences(result[key], nextPath);
+// 		if (nextResult) return nextResult;
+// 	}
+// }
+export function findAllReferences(
 	result: Record<string, any>,
 	path: Array<string> = [],
-): FindReferenceResult | undefined {
-	if (result === null || typeof result !== "object") return;
-	if (result[REFERENCE_KEY]) return { reference: result[REFERENCE_KEY], path };
+): FindReferenceResult[] {
+	let references: FindReferenceResult[] = [];
 
-	for (const key in result) {
-		if (result[key] === null || typeof result[key] !== "object") continue;
+	// Check if the result itself is null or not an object
+	if (result === null || typeof result !== "object") return references;
 
-		// const nextPath = path ? `${path}.${key}` : key;
-		const nextPath = path.concat(key);
-
-		if (result[key][REFERENCE_KEY])
-			return { reference: result[key][REFERENCE_KEY], path: nextPath };
-
-		const nextResult = findReference(result[key], nextPath);
-		if (nextResult) return nextResult;
+	// Check for the REFERENCE_KEY in the current level of the object
+	if (result[REFERENCE_KEY]) {
+		references.push({ reference: result[REFERENCE_KEY], path });
 	}
+
+	// Iterate through the object recursively to find all references
+	for (const key in result) {
+		if (Object.hasOwn(result, key)) {
+			if (result[key] === null || typeof result[key] !== "object") continue;
+
+			const nextPath = path.concat(key); // Prepare the next path
+
+			// Recursively search for references in the next level of the object
+			const childReferences = findAllReferences(result[key], nextPath);
+			references = references.concat(childReferences);
+		}
+	}
+
+	return references;
 }

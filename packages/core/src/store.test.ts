@@ -1,14 +1,16 @@
 import middy from "@middy/core";
 import { APIGatewayProxyEventV2, Context, Handler } from "aws-lambda";
-import { describe, test, expect, vi } from "vitest";
-import store, {
+import set from "lodash.set";
+import { beforeAll, describe, expect, test, vi } from "vitest";
+import {
 	LoadInput,
-	MiddlewareOptions,
+	LoadInputMiddlewareOptions,
 	Store,
 	StoreOutput,
+	StoreOutputMiddlewareOptions,
+	loadInput,
+	storeOutput,
 } from "./store.js";
-import { before } from "node:test";
-import set from "lodash.set";
 
 const context = {} as Context;
 
@@ -16,8 +18,11 @@ const lambdaHandler: Handler = async (input, context) => {
 	return input;
 };
 
-const useHandler = (options: MiddlewareOptions) =>
-	middy().use(store(options)).handler(lambdaHandler);
+const useLoadInput = (options: LoadInputMiddlewareOptions) =>
+	middy().use(loadInput(options)).handler(lambdaHandler);
+
+const useStoreOutput = (options: StoreOutputMiddlewareOptions) =>
+	middy().use(storeOutput(options)).handler(lambdaHandler);
 
 const mockReference = {
 	store: "mock",
@@ -35,7 +40,7 @@ const mockLoadInput: LoadInput = {
 	reference: mockReference,
 };
 
-const mockStoreInput: StoreOutput = {
+const mockStoreOutput: StoreOutput = {
 	payload: mockPayload,
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
 	typeOf: typeof mockPayload,
@@ -49,15 +54,15 @@ const mockStore: Store<any, any> = {
 	store: vi.fn(),
 };
 
-before(() => {
+beforeAll(() => {
 	vi.resetAllMocks();
 });
 
-describe("middleware.before", () => {
-	test.each([null, "foo", 42, true, false, () => { }])(
+describe("loadInput", () => {
+	test.each([null, "foo", 42, true, false, () => {}])(
 		"should passthrough input if is: %s",
 		async (input) => {
-			const handler = useHandler({
+			const handler = useLoadInput({
 				stores: [mockStore],
 			});
 
@@ -70,7 +75,7 @@ describe("middleware.before", () => {
 	);
 
 	test("should passthrough input if no reference", async () => {
-		const handler = useHandler({
+		const handler = useLoadInput({
 			stores: [mockStore],
 		});
 
@@ -86,7 +91,7 @@ describe("middleware.before", () => {
 	test("should passthrough input if no store was found", async () => {
 		vi.mocked(mockStore.canLoad).mockReturnValue(false);
 
-		const handler = useHandler({
+		const handler = useLoadInput({
 			stores: [mockStore],
 			passThrough: true,
 		});
@@ -103,7 +108,7 @@ describe("middleware.before", () => {
 	test("should throw an error if no store was found", async () => {
 		vi.mocked(mockStore.canLoad).mockReturnValue(false);
 
-		const handler = useHandler({
+		const handler = useLoadInput({
 			stores: [mockStore],
 			passThrough: false,
 		});
@@ -121,7 +126,7 @@ describe("middleware.before", () => {
 		vi.mocked(mockStore.canLoad).mockReturnValue(true);
 		vi.mocked(mockStore.load).mockResolvedValue(mockPayload);
 
-		const handler = useHandler({
+		const handler = useLoadInput({
 			stores: [mockStore],
 		});
 
@@ -134,13 +139,13 @@ describe("middleware.before", () => {
 		expect(mockStore.load).toHaveBeenCalledWith(mockLoadInput);
 	});
 
-	test.each([{ path: "a" }, { path: "a.b" }])(
+	test.each([{ path: "a" }, { path: "a.b" }, { path: "a.b[0].c" }])(
 		"should load input nested: $path",
 		async ({ path }) => {
 			vi.mocked(mockStore.canLoad).mockReturnValue(true);
 			vi.mocked(mockStore.load).mockResolvedValue(mockPayload);
 
-			const handler = useHandler({
+			const handler = useLoadInput({
 				stores: [mockStore],
 			});
 
@@ -153,13 +158,71 @@ describe("middleware.before", () => {
 			expect(mockStore.load).toHaveBeenCalledWith(mockLoadInput);
 		},
 	);
+
+	describe("should load input from array", () => {
+		test("root", async () => {
+			vi.mocked(mockStore.canLoad).mockReturnValue(true);
+			vi.mocked(mockStore.load).mockResolvedValue(mockPayload);
+
+			const handler = useLoadInput({
+				stores: [mockStore],
+			});
+
+			const input = [mockPayloadWithReference, mockPayloadWithReference];
+
+			const output = await handler(input, context);
+
+			expect(output).toEqual([mockPayload, mockPayload]);
+			expect(mockStore.canLoad).toHaveBeenCalledWith(mockLoadInput);
+			expect(mockStore.load).toHaveBeenCalledWith(mockLoadInput);
+		});
+
+		test("single property", async () => {
+			vi.mocked(mockStore.canLoad).mockReturnValue(true);
+			vi.mocked(mockStore.load).mockResolvedValue(mockPayload);
+
+			const handler = useLoadInput({
+				stores: [mockStore],
+			});
+
+			const input = {
+				a: [mockPayloadWithReference, mockPayloadWithReference],
+			};
+
+			const output = await handler(input, context);
+
+			expect(output).toEqual({ a: [mockPayload, mockPayload] });
+			expect(mockStore.canLoad).toHaveBeenCalledWith(mockLoadInput);
+			expect(mockStore.load).toHaveBeenCalledWith(mockLoadInput);
+		});
+
+		test("multiple properties", async () => {
+			vi.mocked(mockStore.canLoad).mockReturnValue(true);
+			vi.mocked(mockStore.load).mockResolvedValue(mockPayload);
+
+			const handler = useLoadInput({
+				stores: [mockStore],
+			});
+
+			const input = {
+				a: [mockPayloadWithReference],
+				b: mockPayloadWithReference,
+			};
+
+			const output = await handler(input, context);
+
+			expect(output).toEqual({ a: [mockPayload], b: mockPayload });
+			expect(mockStore.canLoad).toHaveBeenCalledWith(mockLoadInput);
+			expect(mockStore.load).toHaveBeenCalledWith(mockLoadInput);
+		});
+	});
 });
 
-describe("middleware.after", () => {
-	test.each([null, "foo", 42, true, false, () => { }])(
+describe("storeOutput", () => {
+	test.each([null, "foo", 42, true, false, () => {}])(
 		"should passthrough output if is: %s",
 		async (input) => {
-			const handler = useHandler({
+			const handler = useStoreOutput({
 				stores: [mockStore],
 			});
 
@@ -172,7 +235,7 @@ describe("middleware.after", () => {
 	);
 
 	test("should passthrough output if size is too size", async () => {
-		const handler = useHandler({
+		const handler = useStoreOutput({
 			stores: [mockStore],
 		});
 
@@ -188,7 +251,7 @@ describe("middleware.after", () => {
 	test("should passthrough output if no store was found", async () => {
 		vi.mocked(mockStore.canStore).mockReturnValue(false);
 
-		const handler = useHandler({
+		const handler = useStoreOutput({
 			stores: [mockStore],
 			maxSize: 0,
 			passThrough: true,
@@ -199,14 +262,14 @@ describe("middleware.after", () => {
 		const output = await handler(input, context);
 
 		expect(output).toEqual(mockPayload);
-		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreInput);
+		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
 		expect(mockStore.store).not.toHaveBeenCalled();
 	});
 
 	test("should throw an error if no store was found", async () => {
 		vi.mocked(mockStore.canStore).mockReturnValue(false);
 
-		const handler = useHandler({
+		const handler = useStoreOutput({
 			stores: [mockStore],
 			maxSize: 0,
 			passThrough: false,
@@ -217,7 +280,7 @@ describe("middleware.after", () => {
 		const output = handler(input, context);
 
 		await expect(output).rejects.toThrow();
-		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreInput);
+		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
 		expect(mockStore.store).not.toHaveBeenCalled();
 	});
 
@@ -225,7 +288,7 @@ describe("middleware.after", () => {
 		vi.mocked(mockStore.canStore).mockReturnValue(true);
 		vi.mocked(mockStore.store).mockResolvedValue(mockReference);
 
-		const handler = useHandler({
+		const handler = useStoreOutput({
 			stores: [mockStore],
 			maxSize: 0,
 		});
@@ -235,20 +298,20 @@ describe("middleware.after", () => {
 		const output = await handler(input, context);
 
 		expect(output).toEqual(mockPayloadWithReference);
-		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreInput);
-		expect(mockStore.store).toHaveBeenCalledWith(mockStoreInput);
+		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
+		expect(mockStore.store).toHaveBeenCalledWith(mockStoreOutput);
 	});
 
-	test.each([{ path: undefined }, { path: "" }, { path: [] }])(
-		"should store output at root with selector: $path",
-		async ({ path }) => {
+	test.each([{ selector: undefined }, { selector: "" }, { selector: [] }])(
+		"should store output at root with selector: $selector",
+		async ({ selector }) => {
 			vi.mocked(mockStore.canStore).mockReturnValue(true);
 			vi.mocked(mockStore.store).mockResolvedValue(mockReference);
 
-			const handler = useHandler({
+			const handler = useStoreOutput({
 				stores: [mockStore],
 				maxSize: 0,
-				selector: path,
+				selector,
 			});
 
 			const input = mockPayload;
@@ -256,32 +319,35 @@ describe("middleware.after", () => {
 			const output = await handler(input, context);
 
 			expect(output).toEqual(mockPayloadWithReference);
-			expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreInput);
-			expect(mockStore.store).toHaveBeenCalledWith(mockStoreInput);
+			expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
+			expect(mockStore.store).toHaveBeenCalledWith(mockStoreOutput);
 		},
 	);
 
 	test.each([
-		{ path: "a" },
-		{ path: "a.b" },
-		{ path: ["a"] },
-		{ path: ["a", "b"] },
-	])("should store output nested with selector: $path", async ({ path }) => {
-		vi.mocked(mockStore.canStore).mockReturnValue(true);
-		vi.mocked(mockStore.store).mockResolvedValue(mockReference);
+		{ selector: "a" },
+		{ selector: "a.b" },
+		{ selector: ["a"] },
+		{ selector: ["a", "b"] },
+	])(
+		"should store output nested with selector: $selector",
+		async ({ selector }) => {
+			vi.mocked(mockStore.canStore).mockReturnValue(true);
+			vi.mocked(mockStore.store).mockResolvedValue(mockReference);
 
-		const handler = useHandler({
-			stores: [mockStore],
-			maxSize: 0,
-			selector: path,
-		});
+			const handler = useStoreOutput({
+				stores: [mockStore],
+				maxSize: 0,
+				selector,
+			});
 
-		const input = set({}, path, mockPayload);
+			const input = set({}, selector, mockPayload);
 
-		const output = await handler(input, context);
+			const output = await handler(input, context);
 
-		expect(output).toEqual(set({}, path, mockPayloadWithReference));
-		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreInput);
-		expect(mockStore.store).toHaveBeenCalledWith(mockStoreInput);
-	});
+			expect(output).toEqual(set({}, selector, mockPayloadWithReference));
+			expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
+			expect(mockStore.store).toHaveBeenCalledWith(mockStoreOutput);
+		},
+	);
 });

@@ -1,8 +1,8 @@
 {
-  "name": "stepfunctions",
+  "name": "middy-store-example-stepfunctions",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy": "pnpm sls deploy"
@@ -12,8 +12,8 @@
   "license": "ISC",
   "dependencies": {
     "@middy/core": "^5.2.3",
-    "middy-input-output-store": "workspace:*",
-    "middy-input-output-store-s3": "workspace:*"
+    "middy-store": "workspace:*",
+    "middy-store-s3": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.20.1",

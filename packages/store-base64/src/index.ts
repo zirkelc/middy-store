@@ -1,10 +1,10 @@
 import {
 	LoadInput,
 	Store,
-	StoreOutput,
 	StoreOptions,
+	StoreOutput,
 	tryParseJSON,
-} from "middy-input-output-store";
+} from "middy-store";
 
 export interface Base64StoreReference {
 	store: "base64";
@@ -13,14 +13,14 @@ export interface Base64StoreReference {
 
 export type Base4StorePayload = any;
 
-export interface Base64StoreOptions<TPaylod = any> extends StoreOptions { }
+export interface Base64StoreOptions<TPaylod = any> extends StoreOptions {}
 
 export class Base64Store
 	implements Store<Base64StoreReference, Base4StorePayload>
 {
 	readonly name = "base64" as const;
 
-	constructor(opts?: Base64StoreOptions<Base4StorePayload>) { }
+	constructor(opts?: Base64StoreOptions<Base4StorePayload>) {}
 
 	canLoad(input: LoadInput<unknown>): input is LoadInput<Base64StoreReference> {
 		if (typeof input.reference !== "object" || input.reference === null)

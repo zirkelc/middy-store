@@ -1,5 +1,5 @@
 {
-  "name": "middy-input-output-store-base64",
+  "name": "middy-store-base64",
   "version": "1.0.0",
   "description": "",
   "type": "module",
@@ -22,13 +22,15 @@
     }
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest",
+    "build": "tsc --noEmit",
+    "bundle": "tsup src/index.ts --format cjs,esm --dts --clean"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "middy-input-output-store": "workspace:*"
+    "middy-store": "workspace:*"
   },
   "devDependencies": {}
 }

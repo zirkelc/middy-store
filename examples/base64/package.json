@@ -1,5 +1,5 @@
 {
-  "name": "s3",
+  "name": "middy-store-example-base64",
   "private": true,
   "type": "module",
   "main": "handler.ts",
@@ -11,8 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "@middy/core": "^5.2.3",
-    "middy-input-output-store": "workspace:*",
-    "middy-input-output-store-base64": "workspace:*"
+    "middy-store": "workspace:*",
+    "middy-store-base64": "workspace:*"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.133"

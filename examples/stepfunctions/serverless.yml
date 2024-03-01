@@ -5,9 +5,22 @@ plugins:
   - serverless-esbuild
   - serverless-step-functions
 
+custom:
+  esbuild:
+    platform: node
+    format: esm
+    outExtension: 
+      '.js': '.mjs'
+    banner:     
+      js: "import {createRequire} from 'module'; const require = createRequire(import.meta.url)"
+    bundle: true
+    minify: false
+    sourcemap: false
+
 provider:
   name: aws
   runtime: nodejs18.x
+  timeout: 30
   environment:
     PAYLOAD_BUCKET: !Ref PayloadBucket
   iam:
@@ -22,14 +35,14 @@ provider:
             - "arn:aws:s3:::${self:service}-payload"
 
 functions:
-  GenerateLargePayload:
-    handler: handler.GenerateLargePayloadHandler
-  PrintLargePayload:
-    handler: handler.PrintLargePayloadHandler    
-  LoopGenerateLargePayload:
-    handler: handler.LoopGenerateLargePayloadHandler    
-  LoopPrintLargePayload:
-    handler: handler.LoopPrintLargePayloadHandler
+  SingleGeneratePayload:
+    handler: functions/single.generatePayloadHandler
+  SinglePrintPayload:
+    handler: functions/single.printPayloadHandler
+  MultipleGeneratePayload:
+    handler: functions/multiple.generatePayloadHandler    
+  MultiplePrintPayload:
+    handler: functions/multiple.printPayloadHandler    
 
 stepFunctions:
   stateMachines:
@@ -42,41 +55,48 @@ stepFunctions:
             Type: Parallel
             End: true
             Branches:
-              - StartAt: GenerateLargePayload
+              - StartAt: SingleGeneratePayload
                 States:
-                  GenerateLargePayload:
+                  SingleGeneratePayload:
                     Type: Task
                     Resource:
-                      Fn::GetAtt: [GenerateLargePayload, Arn]
-                    Next: PrintLargePayload
-                  PrintLargePayload:
+                      Fn::GetAtt: [SingleGeneratePayload, Arn]
+                    Next: SinglePrintPayload
+                  SinglePrintPayload:
                     Type: Task
                     Resource:
-                      Fn::GetAtt: [PrintLargePayload, Arn]            
+                      Fn::GetAtt: [SinglePrintPayload, Arn]            
                     End: true
-              - StartAt: SetCounter
+              - StartAt: InitIterator
                 States:
-                  SetCounter:
+                  InitIterator:
                     Type: Pass
-                    Result: 0
-                    ResultPath: $.counter
-                    Next: LoopGenerateLargePayload
-                  LoopGenerateLargePayload:
+                    Result: 
+                      count: 0
+                    ResultPath: $.iterator
+                    Next: MultipleGeneratePayload
+                  MultipleGeneratePayload:
                     Type: Task
                     Resource:
-                      Fn::GetAtt: [LoopGenerateLargePayload, Arn]
-                    Next: CheckCounter
-                  CheckCounter:
+                      Fn::GetAtt: [MultipleGeneratePayload, Arn]
+                    Next: IncrementIterator
+                  IncrementIterator:
+                    Type: Pass
+                    Parameters: 
+                      count.$: States.MathAdd($.iterator.count, 1)
+                    ResultPath: $.iterator
+                    Next: CheckIterator
+                  CheckIterator:
                     Type: Choice
                     Choices:
-                      - Variable: $.counter
+                      - Variable: $.iterator.count
                         NumericLessThan: 5
-                        Next: LoopGenerateLargePayload
-                    Default: LoopPrintLargePayload
-                  LoopPrintLargePayload:
+                        Next: MultipleGeneratePayload
+                    Default: MultiplePrintPayload
+                  MultiplePrintPayload:
                     Type: Task
                     Resource:
-                      Fn::GetAtt: [LoopPrintLargePayload, Arn]            
+                      Fn::GetAtt: [MultiplePrintPayload, Arn]            
                     End: true
 resources:
   Resources:

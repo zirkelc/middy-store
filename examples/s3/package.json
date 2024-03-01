@@ -1,5 +1,5 @@
 {
-  "name": "s3",
+  "name": "middy-store-example-s3",
   "version": "1.0.0",
   "description": "",
   "type": "module",

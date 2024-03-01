@@ -5,12 +5,7 @@ import {
 	PutObjectCommandInput,
 	S3Client,
 } from "@aws-sdk/client-s3";
-import type {
-	LoadInput,
-	Store,
-	StoreOutput,
-	StoreOptions,
-} from "middy-input-output-store";
+import type { LoadInput, Store, StoreOptions, StoreOutput } from "middy-store";
 
 export interface S3StoreReference {
 	store: "s3";

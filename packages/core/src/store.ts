@@ -4,7 +4,7 @@ import set from "lodash.set";
 import toPath from "lodash.topath";
 import {
 	calculateByteSize,
-	findReference,
+	findAllReferences,
 	replacePayloadWithReference,
 	replaceReferenceWithPayload,
 	selectPayload,
@@ -20,9 +20,23 @@ export type Reference = {
 };
 
 // https://lodash.com/docs/4.17.15#get
-export type Selector = string | string[];
+export type Path = string | string[];
 
-export type Replacer = string | string[];
+// export type Replacer = string | string[];
+
+type SelectorArgs = {
+	output: any;
+};
+export type SelectorFn = (args: SelectorArgs) => any;
+export type Selector = Path | SelectorFn;
+
+type ReplacerArgs = {
+	input: any;
+	output: any;
+	reference: Reference;
+};
+export type ReplacerFn = (args: ReplacerArgs) => any;
+export type Replacer = Path | ReplacerFn;
 
 export type StoreOptions = {
 	maxSize?: number;
@@ -50,43 +64,44 @@ interface MiddlewareOptions {
 	stores: [Store<any, any>, ...Store<any, any>[]];
 	logger?: (...args: any[]) => void;
 	passThrough?: boolean;
-};
+}
 
 export interface LoadInputMiddlewareOptions extends MiddlewareOptions {
-};
+	selector?: Selector;
+}
 
 export interface StoreOutputMiddlewareOptions extends MiddlewareOptions {
 	/**
 	 * Selects the payload that should be saved in the store.
 	 * If no selector is specified, the entire output will be saved in the store.
 	 * Then entire output will be replaced with a reference to the stored payload.
-	 * 
+	 *
 	 * If a selector is specified, only this part of the output will be saved in the store.
 	 * By default, the selected payload will be replaced with a reference to the stored payload.
 	 * This behavior can be changed by specifying a custom replacer.
 	 *
 	 * The selector can be a string path or an array of string paths.
 	 * It uses Lodash's get function {@link https://lodash.com/docs/4.17.15#get | _.get() } to select the payload from the output.
-	 * 
-	 * Examples: 
-	 * ```	
+	 *
+	 * Examples:
+	 * ```
 	 * selector: 'a[0].b.c'; // selects the payload at the path 'a[0].b.c'
 	 * selector: ['a', '0', 'b', 'c']; // selects the payload at the path 'a[0].b.c'
 	 * ```
 	 */
-	selector?: Selector; // TODO multiple selectors?
+	selector?: Selector;
 	/**
 	 * Replaces the payload with a reference to the stored payload.
 	 * If no replacer is specified, the reference will be placed at the path specified by the selector.
-	 * 
+	 *
 	 * If a replacer is specified, the reference will be placed at the specified path instead of the path specified by the selector.
-	 * 
+	 *
 	 * The replacer can be a string path or an array of string paths.
 	 * It uses Lodash's set function {@link https://lodash.com/docs/4.17.15#set | _.set() } to place the reference in the output.
-	 * 
+	 *
 	 * If the replace path ends with array brackets, the reference will be pushed to the array instead of being set as a property.
 	 * This allows to aggregate multiple references in an array if the Lambda function is called multiple times.
-	 * 
+	 *
 	 * Examples:
 	 * ```
 	 * replacer: 'x.y.z'; // places the reference at the path 'x.y.z'
@@ -96,11 +111,12 @@ export interface StoreOutputMiddlewareOptions extends MiddlewareOptions {
 	 */
 	replacer?: Replacer;
 	maxSize?: number;
-};
+}
 
 const DEFAULT_MAX_SIZE = 256 * 1024; // 256KB
 const DEFAULT_SELECTOR: Selector = [];
-const DEFAULT_DUMMY_LOGGER = (...args: any[]) => { };
+// const DEFAULT_REPLACER: Replacer = [];
+const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
 
 /**
  * Takes an input payload and checks if it exceeds the maximum allowed size of 256KB.
@@ -128,6 +144,8 @@ export const loadInput = <
 ): middy.MiddlewareObj<TEvent, TResult> => {
 	const { stores, passThrough } = opts;
 	const logger = opts.logger ?? DEFAULT_DUMMY_LOGGER;
+	// TODO implement selector
+	const selector = opts.selector ?? DEFAULT_SELECTOR;
 
 	const before: middy.MiddlewareFn = async (request) => {
 		const { event: input, context } = request;
@@ -145,46 +163,48 @@ export const loadInput = <
 		// check if the event contains a reference to a stored payload
 		// if it does, load the payload from the store
 		// if it doesn't, leave the event untouched
-		const result = findReference(input);
-		if (!result) {
+		const references = findAllReferences(input);
+		if (!references || references.length === 0) {
 			logger(`No reference found in input`);
 			return;
 		}
 
-		const { reference, path } = result;
-		logger(`Found reference in input, loading from store`, { reference, path });
+		logger(`Found ${references.length} references in input`, { references });
 
-		const loadInput = { reference };
+		for (const { reference, path } of references) {
+			logger(`Process reference at ${path.join(".")}`);
+			const loadInput = { reference };
 
-		// find a store that can load the reference
-		const store = stores.find((store) => store.canLoad(loadInput));
-		if (!store) {
-			if (passThrough) {
-				logger(`No store was found to load reference, passthrough input`);
-				return;
+			// find a store that can load the reference
+			const store = stores.find((store) => store.canLoad(loadInput));
+			if (!store) {
+				if (passThrough) {
+					logger(`No store was found to load reference, passthrough input`);
+					return;
+				}
+
+				logger(`No store was found to load reference, throwing error`);
+				throw new Error(
+					`No store can load reference: ${JSON.stringify(reference)}`,
+				);
 			}
 
-			logger(`No store was found to load reference, throwing error`);
-			throw new Error(
-				`No store can load reference: ${JSON.stringify(reference)}`,
-			);
+			logger(`Found store "${store.name}" to load reference`);
+
+			// load the payload from the store
+			const payload = await store.load(loadInput);
+
+			logger(`Loaded payload from store "${store.name}"`, {
+				input,
+				path,
+				payload,
+			});
+
+			// replace the reference with the payload
+			request.event = replaceReferenceWithPayload(input, path, payload);
+
+			logger(`Replaced reference with payload`, { path, payload });
 		}
-
-		logger(`Found store "${store.name}" to load reference`);
-
-		// load the payload from the store
-		const payload = await store.load(loadInput);
-
-		logger(`Loaded payload from store "${store.name}"`, {
-			input,
-			path,
-			payload,
-		});
-
-		// replace the reference with the payload
-		request.event = replaceReferenceWithPayload(input, path, payload);
-
-		logger(`Replaced reference with payload`, { path, payload });
 	};
 
 	return {
@@ -200,11 +220,18 @@ export const storeOutput = <
 ): middy.MiddlewareObj<TEvent, TResult> => {
 	const { stores, passThrough } = opts;
 	const selector = opts.selector ?? DEFAULT_SELECTOR;
+	const replacer = opts.replacer ?? selector;
 	const maxSize = opts.maxSize ?? DEFAULT_MAX_SIZE;
 	const logger = opts.logger ?? DEFAULT_DUMMY_LOGGER;
 
+	// let input: TEvent;
+	// const before: middy.MiddlewareFn = async (request) => {
+	// 	// save the input for the after middleware
+	// 	input = request.event;
+	// }
+
 	const after: middy.MiddlewareFn = async (request) => {
-		const { response: output } = request;
+		const { response: output, event: input } = request;
 
 		if (
 			output === null ||
@@ -235,7 +262,7 @@ export const storeOutput = <
 		// select payload to be stored
 		// if no selector is specified, store the entire response
 		// if a selector is specified, use it to select the payload to be stored
-		const { payload, path } = selectPayload(output, selector);
+		const payload = selectPayload({ output, selector });
 
 		const storeInput = {
 			payload,
@@ -244,7 +271,8 @@ export const storeOutput = <
 		};
 
 		logger(`Selected payload`, {
-			path,
+			// path,
+			payload,
 			byteSize: storeInput.byteSize,
 			typeOf: storeInput.typeOf,
 		});
@@ -266,17 +294,26 @@ export const storeOutput = <
 		logger(`Found store "${store.name}" to store payload`);
 
 		// store the payload in the store
-		const reference = await store.store(storeInput);
+		const storeReference = await store.store(storeInput);
 
 		logger(`Stored payload in store "${store.name}"`);
 
 		// replace the response with a reference to the stored response
-		request.response = replacePayloadWithReference(output, path, reference);
+		request.response = replacePayloadWithReference({
+			input,
+			output,
+			replacer,
+			storeReference,
+		});
 
-		logger(`Replaced payload with reference`, { path, reference });
+		logger(`Replaced payload with reference`, {
+			storeReference,
+			output: request.response,
+		});
 	};
 
 	return {
+		// before,
 		after,
 	};
 };

@@ -5,6 +5,7 @@
 	},
 	"linter": {
 		"enabled": true,
+		"ignore": ["dist"],
 		"rules": {
 			"recommended": true,
 			"style": {
@@ -21,9 +22,7 @@
 	},
 	"overrides": [
 		{
-			"include": [
-				"*.test.ts"
-			],
+			"include": ["*.test.ts"],
 			"linter": {}
 		}
 	]
