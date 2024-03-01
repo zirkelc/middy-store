@@ -1,19 +1,19 @@
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "type": "node-terminal",
-      "name": "Debug (tsx)",
-      "request": "launch",
-      "command": "pnpm tsx ${fileBasename}",
-      "cwd": "${fileDirname}"
-    },
-    {
-      "type": "node-terminal",
-      "name": "Vitest Test",
-      "request": "launch",
-      "command": "pnpm vitest ${relativeFile}",
-      "cwd": "${workspaceRoot}"
-    }
-  ]
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "node-terminal",
+			"name": "Debug (tsx)",
+			"request": "launch",
+			"command": "pnpm tsx ${fileBasename}",
+			"cwd": "${fileDirname}"
+		},
+		{
+			"type": "node-terminal",
+			"name": "Vitest Test",
+			"request": "launch",
+			"command": "pnpm vitest ${relativeFile}",
+			"cwd": "${workspaceRoot}"
+		}
+	]
 }

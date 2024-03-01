@@ -20,8 +20,7 @@
   "scripts": {
     "test": "vitest",
     "build": "pnpm -r --no-bail build",
-    "lint": "biome lint packages --apply",
-    "format": "biome format packages --write",
+    "lint": "biome check . --apply --no-errors-on-unmatched",
     "prepare": "husky"
   },
   "keywords": [],
@@ -46,9 +45,6 @@
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^1.2.2"
-  },
-  "simple-git-hooks": {
-    "pre-commit": "npx lint-staged"
   },
   "lint-staged": {
     "*.{ts,json}": [
