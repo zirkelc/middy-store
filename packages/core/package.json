@@ -12,6 +12,9 @@
       "require": "./src/index.ts"
     }
   },
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "main": "./dist/index.js",
