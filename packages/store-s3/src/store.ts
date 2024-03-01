@@ -20,6 +20,7 @@ export interface S3StoreOptions<TPaylod = any> extends StoreOptions {
 	bucket: string | (() => string);
 	key: string | (() => string); // TODO pass full output and payload to this function to allow dynamic keys
 	// uriFormat?: 's3' | 's3+http' | 's3+https'; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
+	logger?: (...args: any[]) => void;
 }
 
 export class S3Store<TPayload = any>
@@ -31,6 +32,7 @@ export class S3Store<TPayload = any>
 	#client: S3Client;
 	#bucket: () => string;
 	#key: () => string;
+	#logger: (...args: any[]) => void;
 
 	constructor(opts: S3StoreOptions<TPayload>) {
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
@@ -44,6 +46,8 @@ export class S3Store<TPayload = any>
 		this.#client = new S3Client({
 			...opts.config,
 		});
+
+		this.#logger = opts.logger ?? (() => {});
 	}
 
 	canLoad(input: LoadInput<unknown>): boolean {
@@ -84,36 +88,54 @@ export class S3Store<TPayload = any>
 	}
 
 	canStore(output: StoreOutput<unknown>): boolean {
+		this.#logger("Checking if store can store", { output });
+
 		if (output.payload === null) return false;
 		if (this.#maxSize === 0) return false;
 		if (output.byteSize > this.#maxSize) return false;
 		if (output.typeOf !== "string" && output.typeOf !== "object") return false;
 
 		const bucket = this.#bucket();
-		if (!this.isValidBucket(bucket))
+		if (!this.isValidBucket(bucket)) {
+			this.#logger("Invalid bucket", { bucket });
 			throw new Error(
 				`Invalid bucket. Must be a string, but received: ${bucket}`,
 			);
+		}
 
 		const key = this.#key();
-		if (!this.isValidKey(key))
+		if (!this.isValidKey(key)) {
+			this.#logger("Invalid key", { key });
 			throw new Error(`Invalid key. Must be a string, but received: ${key}`);
+		}
+
+		this.#logger("Store can store", { bucket, key });
 
 		return true;
 	}
 
 	public async store(output: StoreOutput<TPayload>): Promise<S3StoreReference> {
+		this.#logger("Storing payload", { output });
+
 		const bucket = this.#bucket();
 		const key = this.#key();
 		const { payload } = output;
+		this.#logger("Resolved bucket and key", { bucket, key });
 
-		await this.#client.send(
-			new PutObjectCommand({
-				...this.serizalizePayload(payload),
-				Bucket: bucket,
-				Key: key,
-			}),
-		);
+		try {
+			await this.#client.send(
+				new PutObjectCommand({
+					...this.serizalizePayload(payload),
+					Bucket: bucket,
+					Key: key,
+				}),
+			);
+		} catch (error) {
+			this.#logger("Error during put object", { error });
+			throw error;
+		}
+
+		this.#logger("Sucessfully stored payload", { bucket, key });
 
 		return {
 			store: this.name,
