@@ -24,12 +24,14 @@ export type Path = string | string[];
 
 // export type Replacer = string | string[];
 
+// TODO pass middy typed event and result for type safety
 type SelectorArgs = {
 	output: any;
 };
 export type SelectorFn = (args: SelectorArgs) => any;
 export type Selector = Path | SelectorFn;
 
+// TODO pass middy typed event and result for type safety
 type ReplacerArgs = {
 	input: any;
 	output: any;
@@ -42,12 +44,14 @@ export type StoreOptions = {
 	maxSize?: number;
 };
 
+// TODO pass full output and payload
 export type StoreOutput<TPayload = any> = {
 	byteSize: number;
 	typeOf: string;
 	payload: TPayload;
 };
 
+// TODO pass full input and reference
 export type LoadInput<TReference = any> = {
 	reference: TReference;
 };

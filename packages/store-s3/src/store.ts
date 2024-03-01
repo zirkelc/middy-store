@@ -4,6 +4,7 @@ import {
 	PutObjectCommand,
 	PutObjectCommandInput,
 	S3Client,
+	S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import type { LoadInput, Store, StoreOptions, StoreOutput } from "middy-store";
 
@@ -15,8 +16,9 @@ export interface S3StoreReference {
 }
 
 export interface S3StoreOptions<TPaylod = any> extends StoreOptions {
+	config?: S3ClientConfig;
 	bucket: string | (() => string);
-	key: string | (() => string);
+	key: string | (() => string); // TODO pass full output and payload to this function to allow dynamic keys
 	// uriFormat?: 's3' | 's3+http' | 's3+https'; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
 }
 
@@ -32,13 +34,16 @@ export class S3Store<TPayload = any>
 
 	constructor(opts: S3StoreOptions<TPayload>) {
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
-		this.#client = new S3Client({});
 		this.#bucket =
 			typeof opts.bucket === "string"
 				? () => opts.bucket as string
 				: opts.bucket;
 		this.#key =
 			typeof opts.key === "string" ? () => opts.key as string : opts.key;
+
+		this.#client = new S3Client({
+			...opts.config,
+		});
 	}
 
 	canLoad(input: LoadInput<unknown>): boolean {
