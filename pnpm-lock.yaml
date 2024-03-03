@@ -112,6 +112,9 @@ importers:
       '@middy/core':
         specifier: ^5.2.3
         version: 5.2.4
+      '@middy/util':
+        specifier: ^5.2.6
+        version: 5.2.6
       lodash.get:
         specifier: ^4.4.2
         version: 4.4.2
@@ -1408,6 +1411,11 @@ packages:
     engines: {node: '>=18'}
     dependencies:
       '@datastream/core': 0.0.35
+    dev: false
+
+  /@middy/util@5.2.6:
+    resolution: {integrity: sha512-oXIclz9JESQQgS3xDe1Wjg9JfvNNEYeINkQp0d+lWBXLZuLDvtBGrRHCoUDSX5OoSE4LFVcag13XV2tdPHBGCw==}
+    engines: {node: '>=18'}
     dev: false
 
   /@nodelib/fs.scandir@2.1.5:

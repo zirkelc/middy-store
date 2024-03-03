@@ -1,9 +1,8 @@
 import get from "lodash.get";
 import set from "lodash.set";
 import toPath from "lodash.topath";
-import type { Reference, Replacer, Selector } from "./store.js";
-
-const REFERENCE_KEY = "@store";
+import type { Path, Reference, Replacer, Selector } from "./store.js";
+import { MIDDY_STORE } from "./store.js";
 
 export function tryParseJSON(json: string | undefined): unknown | false {
 	if (!json) return false;
@@ -34,15 +33,15 @@ export function calculateByteSize(payload: any) {
 
 type SelectPayloadArgs = {
 	output: Record<string, any>;
-	selector: Selector;
+	path: Path;
 };
-export function selectPayload({ output, selector }: SelectPayloadArgs): any {
-	if (typeof selector === "function") {
-		return selector({ output });
-	}
+export function selectPayloadByPath({ output, path }: SelectPayloadArgs): any {
+	// if (typeof selector === "function") {
+	// 	return selector({ output });
+	// }
 
-	const path = toPath(selector);
-	const payload = path.length === 0 ? output : get(output, path);
+	const pathArray = toPath(path);
+	const payload = pathArray.length === 0 ? output : get(output, pathArray);
 
 	return payload;
 }
@@ -59,7 +58,7 @@ export function replacePayloadWithReference({
 	storeReference,
 	replacer,
 }: ReplacePayloadWithReferenceArgs): Record<string, any> {
-	const reference: Reference = { [REFERENCE_KEY]: storeReference };
+	const reference: Reference<any> = { [MIDDY_STORE]: storeReference };
 
 	if (typeof replacer === "function") {
 		return replacer({ output, input, reference });
@@ -113,8 +112,8 @@ export function findAllReferences(
 	if (result === null || typeof result !== "object") return references;
 
 	// Check for the REFERENCE_KEY in the current level of the object
-	if (result[REFERENCE_KEY]) {
-		references.push({ reference: result[REFERENCE_KEY], path });
+	if (result[MIDDY_STORE]) {
+		references.push({ reference: result[MIDDY_STORE], path });
 	}
 
 	// Iterate through the object recursively to find all references

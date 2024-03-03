@@ -1,22 +1,23 @@
 import middy from "@middy/core";
+import { Options as MiddyOptions } from "@middy/util";
 import get from "lodash.get";
 import set from "lodash.set";
 import toPath from "lodash.topath";
+import { T, s } from "vitest/dist/reporters-MmQN-57K.js";
 import {
 	calculateByteSize,
 	findAllReferences,
 	replacePayloadWithReference,
 	replaceReferenceWithPayload,
-	selectPayload,
+	selectPayloadByPath,
 } from "./utils.js";
 
 // https://middy.js.org/docs/writing-middlewares/configurable-middlewares
 
-const REFERENCE_KEY = "@store";
-const ROOT_PATH = "";
+export const MIDDY_STORE = "@middy-store";
 
-export type Reference = {
-	"@store": any;
+export type Reference<TReference> = {
+	[MIDDY_STORE]: TReference;
 };
 
 // https://lodash.com/docs/4.17.15#get
@@ -31,11 +32,21 @@ type SelectorArgs = {
 export type SelectorFn = (args: SelectorArgs) => any;
 export type Selector = Path | SelectorFn;
 
+export type InputSelector<TInput> = Path | ((args: { input: TInput }) => any);
+export type InputReplacer<TInput> = Path | ((args: { input: TInput }) => any);
+
+export type OutputSelector<TInput, TOutput> =
+	| Path
+	| ((args: { input: TInput; output: TOutput }) => any);
+export type OutputReplacer<TInput, TOutput> =
+	| Path
+	| ((args: { input: TInput; output: TOutput }) => any);
+
 // TODO pass middy typed event and result for type safety
 type ReplacerArgs = {
 	input: any;
 	output: any;
-	reference: Reference;
+	reference: Reference<any>;
 };
 export type ReplacerFn = (args: ReplacerArgs) => any;
 export type Replacer = Path | ReplacerFn;
@@ -44,15 +55,15 @@ export type StoreOptions = {
 	maxSize?: number;
 };
 
-// TODO pass full output and payload
 export type StoreOutput<TPayload = any> = {
-	byteSize: number;
-	typeOf: string;
+	input: any;
+	output: any;
 	payload: TPayload;
+	byteSize: number;
 };
 
-// TODO pass full input and reference
 export type LoadInput<TReference = any> = {
+	input: any;
 	reference: TReference;
 };
 
@@ -70,11 +81,16 @@ interface MiddlewareOptions {
 	passThrough?: boolean;
 }
 
-export interface LoadInputMiddlewareOptions extends MiddlewareOptions {
-	selector?: Selector;
+export interface LoadInputMiddlewareOptions<TInput = unknown>
+	extends MiddlewareOptions {
+	// selector?: InputSelector<TInput>; // TODO
+	// replacer?: InputReplacer<TInput>; // TODO
 }
 
-export interface StoreOutputMiddlewareOptions extends MiddlewareOptions {
+export interface StoreOutputMiddlewareOptions<
+	TInput = unknown,
+	TOutput = unknown,
+> extends MiddlewareOptions {
 	/**
 	 * Selects the payload that should be saved in the store.
 	 * If no selector is specified, the entire output will be saved in the store.
@@ -93,7 +109,7 @@ export interface StoreOutputMiddlewareOptions extends MiddlewareOptions {
 	 * selector: ['a', '0', 'b', 'c']; // selects the payload at the path 'a[0].b.c'
 	 * ```
 	 */
-	selector?: Selector;
+	selector?: OutputSelector<TInput, TOutput>;
 	/**
 	 * Replaces the payload with a reference to the stored payload.
 	 * If no replacer is specified, the reference will be placed at the path specified by the selector.
@@ -113,8 +129,8 @@ export interface StoreOutputMiddlewareOptions extends MiddlewareOptions {
 	 * replacer: 'x.y.z[]'; // pushes the reference to the array at the path 'x.y.z'
 	 * ```
 	 */
-	replacer?: Replacer;
-	maxSize?: number;
+	replacer?: OutputReplacer<TInput, TOutput>;
+	maxSize?: number; // TODO as function with full input and output
 }
 
 const DEFAULT_MAX_SIZE = 256 * 1024; // 256KB
@@ -140,16 +156,15 @@ const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
  * The selector is only to create temporary payloads to control the flow of the state machine between states.
  */
 
-export const loadInput = <
-	TEvent extends Record<string, any>,
-	TResult extends Record<string, any>,
->(
-	opts: LoadInputMiddlewareOptions,
-): middy.MiddlewareObj<TEvent, TResult> => {
+export const loadInput = <TInput = unknown, TOutput = any>(
+	opts: LoadInputMiddlewareOptions<TInput>,
+): middy.MiddlewareObj<TInput, TOutput> => {
 	const { stores, passThrough } = opts;
 	const logger = opts.logger ?? DEFAULT_DUMMY_LOGGER;
 	// TODO implement selector
-	const selector = opts.selector ?? DEFAULT_SELECTOR;
+	// const selector = opts.selector ?? DEFAULT_SELECTOR;
+	// TODO implement replacer
+	// const replacer = opts.replacer ?? selector;
 
 	const before: middy.MiddlewareFn = async (request) => {
 		const { event: input, context } = request;
@@ -177,7 +192,10 @@ export const loadInput = <
 
 		for (const { reference, path } of references) {
 			logger(`Process reference at ${path.join(".")}`);
-			const loadInput = { reference };
+			const loadInput = {
+				input, // TODO Object.freeze(input)?
+				reference,
+			};
 
 			// find a store that can load the reference
 			const store = stores.find((store) => store.canLoad(loadInput));
@@ -216,12 +234,9 @@ export const loadInput = <
 	};
 };
 
-export const storeOutput = <
-	TEvent extends Record<string, any>,
-	TResult extends Record<string, any>,
->(
-	opts: StoreOutputMiddlewareOptions,
-): middy.MiddlewareObj<TEvent, TResult> => {
+export const storeOutput = <TInput = unknown, TOutput = any>(
+	opts: StoreOutputMiddlewareOptions<TInput, TOutput>,
+): middy.MiddlewareObj<TInput, TOutput> => {
 	const { stores, passThrough } = opts;
 	const selector = opts.selector ?? DEFAULT_SELECTOR;
 	const replacer = opts.replacer ?? selector;
@@ -266,25 +281,28 @@ export const storeOutput = <
 		// select payload to be stored
 		// if no selector is specified, store the entire response
 		// if a selector is specified, use it to select the payload to be stored
-		const payload = selectPayload({ output, selector });
+		const payload =
+			typeof selector === "function"
+				? selector({ input, output })
+				: selectPayloadByPath({ output, path: selector });
 
-		const storeInput = {
+		const storeOutput = {
+			input, // TODO Object.freeze(input)?
+			output, // TODO Object.freeze(output)?
 			payload,
 			byteSize: calculateByteSize(payload),
-			typeOf: typeof payload,
 		};
 
 		logger(`Selected payload`, {
 			// path,
 			payload,
-			byteSize: storeInput.byteSize,
-			typeOf: storeInput.typeOf,
+			byteSize: storeOutput.byteSize,
 		});
 
 		// find a store that can store the payload
 		// if there are multiple stores, store the response in the first store that accepts the response
 		// if no store accepts the response, leave the response untouched
-		const store = stores.find((store) => store.canStore(storeInput));
+		const store = stores.find((store) => store.canStore(storeOutput));
 		if (!store) {
 			if (passThrough) {
 				logger(`No store was found to store payload, passthrough output`);
@@ -298,7 +316,7 @@ export const storeOutput = <
 		logger(`Found store "${store.name}" to store payload`);
 
 		// store the payload in the store
-		const storeReference = await store.store(storeInput);
+		const storeReference = await store.store(storeOutput);
 
 		logger(`Stored payload in store "${store.name}"`);
 

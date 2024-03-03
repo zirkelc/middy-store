@@ -37,7 +37,7 @@ console.log("base64", base64);
 
 const context = {} as Context;
 const input = {
-	"@store": {
+	"@middy-store": {
 		store: "base64",
 		base64: "eyJmb28iOiJiYXIifQ==", // {"foo": "bar"}
 	},

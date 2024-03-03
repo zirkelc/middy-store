@@ -21,7 +21,7 @@ const mockReference: S3StoreReference = {
 };
 
 const mockPayloadWithReference = {
-	"@store": mockReference,
+	"@middy-store": mockReference,
 };
 
 const mockPayload = {
@@ -29,13 +29,15 @@ const mockPayload = {
 };
 
 const mockLoadInput: LoadInput = {
+	input: mockPayloadWithReference,
 	reference: mockReference,
 };
 
 const mockStoreOutput: StoreOutput = {
+	input: mockPayload,
+	output: mockPayload,
 	payload: mockPayload,
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
-	typeOf: typeof mockPayload,
 };
 
 beforeAll(() => {
@@ -43,7 +45,7 @@ beforeAll(() => {
 });
 
 describe("S3Store.canLoad", () => {
-	const s3Store = new S3Store({ bucket, key });
+	const s3Store = new S3Store({ load: { bucket, key } });
 
 	test("should return true for payload", async () => {
 		const input = mockLoadInput;
@@ -56,7 +58,10 @@ describe("S3Store.canLoad", () => {
 	test.each(["foo"])(
 		"should return true for reference.bucket: %s",
 		async (bucket) => {
-			const input = { reference: { ...mockReference, bucket } };
+			const input = {
+				...mockLoadInput,
+				reference: { ...mockReference, bucket },
+			};
 
 			const output = s3Store.canLoad(input);
 
@@ -67,7 +72,7 @@ describe("S3Store.canLoad", () => {
 	test.each(["foo"])(
 		"should return true for reference.key: %s",
 		async (key) => {
-			const input = { reference: { ...mockReference, key } };
+			const input = { ...mockLoadInput, reference: { ...mockReference, key } };
 
 			const output = s3Store.canLoad(input);
 
@@ -121,7 +126,7 @@ describe("S3Store.canLoad", () => {
 });
 
 describe("S3Store.load", () => {
-	const s3Store = new S3Store({ bucket, key });
+	const s3Store = new S3Store({ load: { bucket, key } });
 
 	const mockClient = (body: string, contentType: string) =>
 		vi.spyOn(S3Client.prototype, "send").mockImplementation((input) =>
@@ -190,7 +195,7 @@ describe("S3Store.load", () => {
 });
 
 describe("S3Store.canStore", () => {
-	const s3Store = new S3Store({ bucket, key });
+	const s3Store = new S3Store({ store: { bucket, key } });
 
 	test.each(["foo", { foo: "bar" }])(
 		"should return true for payload type: %s",
@@ -222,7 +227,7 @@ describe("S3Store.canStore", () => {
 	test.each([0, 1_000, 1_000_000, 1_000_000_000, Number.MAX_SAFE_INTEGER])(
 		"should return false for options.maxSize < payload size: %s",
 		async (byteSize) => {
-			const s3Store = new S3Store({ bucket, key, maxSize: 0 });
+			const s3Store = new S3Store({ store: { bucket, key }, maxSize: 0 });
 
 			const input = { ...mockStoreOutput, byteSize };
 			const output = s3Store.canStore(input);
@@ -233,7 +238,7 @@ describe("S3Store.canStore", () => {
 	test.each([null, undefined, "", 42, true, false, () => {}, {}])(
 		"should throw an error for invalid options.bucket: %s",
 		async (bucket) => {
-			const s3Store = new S3Store({ bucket: bucket as any, key });
+			const s3Store = new S3Store({ store: { bucket: bucket as any, key } });
 
 			const input = mockStoreOutput;
 
@@ -244,7 +249,7 @@ describe("S3Store.canStore", () => {
 	test.each([null, undefined, "", 42, true, false, () => {}, {}])(
 		"should throw an error for invalid options.key: %s",
 		async (key) => {
-			const s3Store = new S3Store({ bucket, key: key as any });
+			const s3Store = new S3Store({ store: { bucket, key: key as any } });
 
 			const input = mockStoreOutput;
 
@@ -254,7 +259,7 @@ describe("S3Store.canStore", () => {
 });
 
 describe("S3Store.store", () => {
-	const s3Store = new S3Store({ bucket, key });
+	const s3Store = new S3Store({ store: { bucket, key } });
 
 	const mockClient = () =>
 		vi

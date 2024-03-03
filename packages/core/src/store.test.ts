@@ -33,7 +33,7 @@ const mockReference = {
 };
 
 const mockPayloadWithReference = {
-	"@store": mockReference,
+	"@middy-store": mockReference,
 };
 
 const mockPayload = {
@@ -41,13 +41,15 @@ const mockPayload = {
 };
 
 const mockLoadInput: LoadInput = {
+	input: mockPayloadWithReference,
 	reference: mockReference,
 };
 
 const mockStoreOutput: StoreOutput = {
+	input: mockPayload,
+	output: mockPayload,
 	payload: mockPayload,
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
-	typeOf: typeof mockPayload,
 };
 
 const mockStore: Store<any, any> = {
