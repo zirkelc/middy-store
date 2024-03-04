@@ -7,8 +7,8 @@ import { T, s } from "vitest/dist/reporters-MmQN-57K.js";
 import {
 	calculateByteSize,
 	findAllReferences,
-	replacePayloadWithReference,
-	replaceReferenceWithPayload,
+	replacePayloadByPath,
+	replaceReferenceByPath,
 	selectPayloadByPath,
 } from "./utils.js";
 
@@ -16,21 +16,15 @@ import {
 
 export const MIDDY_STORE = "@middy-store";
 
-export type Reference<TReference> = {
+export type MiddyStore<TReference> = {
 	[MIDDY_STORE]: TReference;
 };
 
+export type Payload<TPayload = any> = TPayload;
+export type Reference<TReference = any> = TReference;
+
 // https://lodash.com/docs/4.17.15#get
-export type Path = string | string[];
-
-// export type Replacer = string | string[];
-
-// TODO pass middy typed event and result for type safety
-type SelectorArgs = {
-	output: any;
-};
-export type SelectorFn = (args: SelectorArgs) => any;
-export type Selector = Path | SelectorFn;
+export type Path = string;
 
 export type InputSelector<TInput> = Path | ((args: { input: TInput }) => any);
 export type InputReplacer<TInput> = Path | ((args: { input: TInput }) => any);
@@ -40,43 +34,38 @@ export type OutputSelector<TInput, TOutput> =
 	| ((args: { input: TInput; output: TOutput }) => any);
 export type OutputReplacer<TInput, TOutput> =
 	| Path
-	| ((args: { input: TInput; output: TOutput }) => any);
-
-// TODO pass middy typed event and result for type safety
-type ReplacerArgs = {
-	input: any;
-	output: any;
-	reference: Reference<any>;
-};
-export type ReplacerFn = (args: ReplacerArgs) => any;
-export type Replacer = Path | ReplacerFn;
+	| ((args: {
+			input: TInput;
+			output: TOutput;
+			reference: MiddyStore<any>;
+	  }) => any);
 
 export type StoreOptions = {
 	maxSize?: number;
 };
 
-export type StoreOutput<TPayload = any> = {
+export type StoreOutput = {
 	input: any;
 	output: any;
-	payload: TPayload;
+	payload: any;
 	byteSize: number;
 };
 
-export type LoadInput<TReference = any> = {
+export type LoadInput<TReference> = {
 	input: any;
 	reference: TReference;
 };
 
-export interface Store<TReference, TPayload> {
+export interface Store {
 	name: string;
 	canLoad(input: LoadInput<unknown>): boolean;
-	load(input: LoadInput<TReference>): Promise<TPayload>;
-	canStore(output: StoreOutput<unknown>): boolean;
-	store(output: StoreOutput<TPayload>): Promise<TReference>;
+	load(input: LoadInput<unknown>): Promise<Payload>;
+	canStore(output: StoreOutput): boolean;
+	store(output: StoreOutput): Promise<Reference>;
 }
 
 interface MiddlewareOptions {
-	stores: [Store<any, any>, ...Store<any, any>[]];
+	stores: [Store, ...Store[]];
 	logger?: (...args: any[]) => void;
 	passThrough?: boolean;
 }
@@ -134,7 +123,7 @@ export interface StoreOutputMiddlewareOptions<
 }
 
 const DEFAULT_MAX_SIZE = 256 * 1024; // 256KB
-const DEFAULT_SELECTOR: Selector = [];
+const DEFAULT_OUTPUT_SELECTOR = "";
 // const DEFAULT_REPLACER: Replacer = [];
 const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
 
@@ -223,7 +212,7 @@ export const loadInput = <TInput = unknown, TOutput = any>(
 			});
 
 			// replace the reference with the payload
-			request.event = replaceReferenceWithPayload(input, path, payload);
+			request.event = replaceReferenceByPath(input, path, payload);
 
 			logger(`Replaced reference with payload`, { path, payload });
 		}
@@ -238,16 +227,10 @@ export const storeOutput = <TInput = unknown, TOutput = any>(
 	opts: StoreOutputMiddlewareOptions<TInput, TOutput>,
 ): middy.MiddlewareObj<TInput, TOutput> => {
 	const { stores, passThrough } = opts;
-	const selector = opts.selector ?? DEFAULT_SELECTOR;
+	const selector = opts.selector ?? DEFAULT_OUTPUT_SELECTOR;
 	const replacer = opts.replacer ?? selector;
 	const maxSize = opts.maxSize ?? DEFAULT_MAX_SIZE;
 	const logger = opts.logger ?? DEFAULT_DUMMY_LOGGER;
-
-	// let input: TEvent;
-	// const before: middy.MiddlewareFn = async (request) => {
-	// 	// save the input for the after middleware
-	// 	input = request.event;
-	// }
 
 	const after: middy.MiddlewareFn = async (request) => {
 		const { response: output, event: input } = request;
@@ -316,26 +299,29 @@ export const storeOutput = <TInput = unknown, TOutput = any>(
 		logger(`Found store "${store.name}" to store payload`);
 
 		// store the payload in the store
-		const storeReference = await store.store(storeOutput);
+		const reference: MiddyStore<any> = {
+			[MIDDY_STORE]: await store.store(storeOutput),
+		};
 
 		logger(`Stored payload in store "${store.name}"`);
 
 		// replace the response with a reference to the stored response
-		request.response = replacePayloadWithReference({
-			input,
-			output,
-			replacer,
-			storeReference,
-		});
+		request.response =
+			typeof replacer === "function"
+				? replacer({ input, output, reference })
+				: replacePayloadByPath({
+						output,
+						reference,
+						path: replacer,
+				  });
 
 		logger(`Replaced payload with reference`, {
-			storeReference,
+			reference,
 			output: request.response,
 		});
 	};
 
 	return {
-		// before,
 		after,
 	};
 };

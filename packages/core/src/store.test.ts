@@ -28,7 +28,10 @@ const useStoreOutput = (options: StoreOutputMiddlewareOptions) =>
 			return input;
 		});
 
-const mockReference = {
+type MockReference = {
+	store: "mock";
+};
+const mockReference: MockReference = {
 	store: "mock",
 };
 
@@ -40,7 +43,7 @@ const mockPayload = {
 	foo: "bar",
 };
 
-const mockLoadInput: LoadInput = {
+const mockLoadInput: LoadInput<MockReference> = {
 	input: mockPayloadWithReference,
 	reference: mockReference,
 };
@@ -52,7 +55,7 @@ const mockStoreOutput: StoreOutput = {
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
 };
 
-const mockStore: Store<any, any> = {
+const mockStore: Store = {
 	name: "mock",
 	canLoad: vi.fn(),
 	load: vi.fn(),
@@ -308,7 +311,11 @@ describe("storeOutput", () => {
 		expect(mockStore.store).toHaveBeenCalledWith(mockStoreOutput);
 	});
 
-	test.each([{ selector: undefined }, { selector: "" }, { selector: [] }])(
+	test.each([
+		{ selector: undefined },
+		{ selector: "" },
+		// { selector: [] }
+	])(
 		"should store output at root with selector: $selector",
 		async ({ selector }) => {
 			vi.mocked(mockStore.canStore).mockReturnValue(true);
@@ -333,8 +340,8 @@ describe("storeOutput", () => {
 	test.each([
 		{ selector: "a" },
 		{ selector: "a.b" },
-		{ selector: ["a"] },
-		{ selector: ["a", "b"] },
+		// { selector: ["a"] },
+		// { selector: ["a", "b"] },
 	])(
 		"should store output nested with selector: $selector",
 		async ({ selector }) => {

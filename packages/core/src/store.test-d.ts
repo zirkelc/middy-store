@@ -14,7 +14,7 @@ import {
 
 const context = {} as Context;
 
-const mockStore: Store<any, any> = {
+const mockStore: Store = {
 	name: "mock",
 	canLoad: vi.fn(),
 	load: vi.fn(),

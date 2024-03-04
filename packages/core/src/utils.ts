@@ -1,10 +1,11 @@
 import get from "lodash.get";
 import set from "lodash.set";
 import toPath from "lodash.topath";
-import type { Path, Reference, Replacer, Selector } from "./store.js";
+import type { MiddyStore, Path } from "./store.js";
 import { MIDDY_STORE } from "./store.js";
 
-export function tryParseJSON(json: string | undefined): unknown | false {
+export function tryParseJSON(json: string | undefined): object | false {
+	// handle null, undefined, and empty string
 	if (!json) return false;
 
 	try {
@@ -16,6 +17,29 @@ export function tryParseJSON(json: string | undefined): unknown | false {
 		// so we must check for that, too. Thankfully, null is falsey, so this suffices:
 		if (object && typeof object === "object") return object;
 	} catch (e) {
+		return false;
+	}
+
+	return false;
+}
+
+export function tryStringifyJSON(object: unknown): string | false {
+	// handle null and undefined
+	if (!object) return false;
+
+	// handle primitives
+	if (
+		typeof object === "string" ||
+		typeof object === "number" ||
+		typeof object === "boolean"
+	)
+		return false;
+
+	try {
+		const json = JSON.stringify(object);
+
+		if (json && typeof json === "string") return json;
+	} catch {
 		return false;
 	}
 
@@ -47,29 +71,21 @@ export function selectPayloadByPath({ output, path }: SelectPayloadArgs): any {
 }
 
 type ReplacePayloadWithReferenceArgs = {
-	input: any;
 	output: any;
-	storeReference: any;
-	replacer: Replacer;
+	path: Path;
+	reference: MiddyStore<any>;
 };
-export function replacePayloadWithReference({
-	input,
+export function replacePayloadByPath({
 	output,
-	storeReference,
-	replacer,
+	reference,
+	path,
 }: ReplacePayloadWithReferenceArgs): Record<string, any> {
-	const reference: Reference<any> = { [MIDDY_STORE]: storeReference };
+	const pathArray = toPath(path);
 
-	if (typeof replacer === "function") {
-		return replacer({ output, input, reference });
-	}
-
-	const path = toPath(replacer);
-
-	return path.length === 0 ? reference : set(output, path, reference);
+	return pathArray.length === 0 ? reference : set(output, pathArray, reference);
 }
 
-export function replaceReferenceWithPayload(
+export function replaceReferenceByPath(
 	result: Record<string, any>,
 	path: Array<string>,
 	storePayload: any,

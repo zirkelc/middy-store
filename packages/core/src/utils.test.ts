@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { calculateByteSize, tryParseJSON } from "./utils.js";
+import { calculateByteSize, tryParseJSON, tryStringifyJSON } from "./utils.js";
 
 const mockPayload = {
 	foo: "bar",
@@ -42,6 +42,25 @@ describe("tryParseJSON", () => {
 		"should return false for: %s",
 		async (input) => {
 			const result = tryParseJSON(input as any);
+
+			expect(result).toBe(false);
+		},
+	);
+});
+
+describe("tryStringifyJSON", () => {
+	test("should stringify object", async () => {
+		const payload = mockPayload;
+
+		const result = tryStringifyJSON(payload);
+
+		expect(result).toEqual(JSON.stringify(payload));
+	});
+
+	test.each([null, undefined, "foo", 42, true, false, () => {}])(
+		"should return false for: %s",
+		async (input) => {
+			const result = tryStringifyJSON(input as any);
 
 			expect(result).toBe(false);
 		},
