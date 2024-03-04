@@ -40,7 +40,9 @@ export type S3Object = {
 	key: string;
 };
 
-type KeyMaker = string | ((output: StoreOutput) => string);
+type KeyMaker<TInput = unknown, TOutput = unknown> =
+	| string
+	| ((output: StoreOutput<TInput, TOutput>) => string);
 
 export interface S3StoreOptions<TPaylod = any> extends StoreOptions {
 	config?: S3ClientConfig;
@@ -50,20 +52,22 @@ export interface S3StoreOptions<TPaylod = any> extends StoreOptions {
 	logger?: (...args: any[]) => void;
 }
 
-export class S3Store<TPayload = any> implements Store {
+export class S3Store<TInput = unknown, TOutput = unknown>
+	implements Store<TInput, TOutput>
+{
 	readonly name = "s3" as const;
 
 	#maxSize: number;
 	#client: S3Client;
 	#bucket: string;
-	#key: KeyMaker;
+	#key: KeyMaker<TInput, TOutput>;
 	#format: S3ReferenceFormat;
 	#logger: (...args: any[]) => void;
 
 	// onLoad?: (input: LoadInput<S3Reference>) => boolean | GetObjectCommandInput;
 	// onStore?: (output: StoreOutput) => boolean | PutObjectCommandInput;
 
-	constructor(opts: S3StoreOptions<TPayload>) {
+	constructor(opts: S3StoreOptions) {
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#bucket = opts.bucket;
 		this.#key = opts.key ?? uuidKey;
@@ -75,7 +79,7 @@ export class S3Store<TPayload = any> implements Store {
 		this.#logger = opts.logger ?? (() => {});
 	}
 
-	canLoad(input: LoadInput<unknown>): boolean {
+	canLoad(input: LoadInput<TInput, unknown>): boolean {
 		this.#logger("Checking if store can load");
 
 		// setting load options to false will disable loading completely
@@ -122,7 +126,7 @@ export class S3Store<TPayload = any> implements Store {
 		return false;
 	}
 
-	async load(input: LoadInput<unknown, S3Reference>): Promise<TPayload> {
+	async load(input: LoadInput<TInput, S3Reference>): Promise<unknown> {
 		const { bucket, key } = this.parseS3Reference(input.reference);
 		const result = await this.#client.send(
 			new GetObjectCommand({ Bucket: bucket, Key: key }),
@@ -133,7 +137,7 @@ export class S3Store<TPayload = any> implements Store {
 		return payload;
 	}
 
-	canStore(output: StoreOutput): boolean {
+	canStore(output: StoreOutput<TInput, TOutput>): boolean {
 		this.#logger("Checking if store can store", { output });
 
 		// setting store options to false will disable loading completely
@@ -168,7 +172,9 @@ export class S3Store<TPayload = any> implements Store {
 		return true;
 	}
 
-	public async store(output: StoreOutput): Promise<S3Reference> {
+	public async store(
+		output: StoreOutput<TInput, TOutput>,
+	): Promise<S3Reference> {
 		this.#logger("Storing payload", { output });
 
 		// if (this.#storeOptions === false) {
@@ -224,7 +230,7 @@ export class S3Store<TPayload = any> implements Store {
 		throw new Error(`Invalid reference format: ${this.#format}`);
 	}
 
-	private serizalizePayload(payload: TPayload): Partial<PutObjectCommandInput> {
+	private serizalizePayload(payload: unknown): Partial<PutObjectCommandInput> {
 		if (typeof payload === "string")
 			return {
 				Body: payload,
@@ -242,21 +248,21 @@ export class S3Store<TPayload = any> implements Store {
 
 	private async deserializePayload(
 		result: GetObjectCommandOutput,
-	): Promise<TPayload> {
+	): Promise<unknown> {
 		const { Body, ContentType } = result;
 
 		if (ContentType === "text/plain") {
 			const payload = await Body?.transformToString("utf-8");
 			if (payload === undefined) throw new Error("Payload is undefined");
 
-			return payload as TPayload;
+			return payload as unknown;
 		}
 
 		if (ContentType === "application/json") {
 			const payload = await Body?.transformToString("utf-8");
 			if (payload === undefined) throw new Error("Payload is undefined");
 
-			return JSON.parse(payload) as TPayload;
+			return JSON.parse(payload) as unknown;
 		}
 
 		// if (ContentType?.startsWith('application/octet-stream')) {

@@ -14,19 +14,17 @@ import {
 
 const context = {} as Context;
 
-const useLoadInput = (options: LoadInputMiddlewareOptions) =>
-	middy()
-		.use(loadInput(options))
-		.handler(async (input, context) => {
-			return input;
-		});
+type MockInput =
+	| {
+			foo: string;
+	  }
+	| {
+			"@middy-store": MockReference;
+	  };
 
-const useStoreOutput = (options: StoreOutputMiddlewareOptions) =>
-	middy()
-		.use(storeOutput(options))
-		.handler(async (input, context) => {
-			return input;
-		});
+type MockOutput = {
+	foo: string;
+};
 
 type MockReference = {
 	store: "mock";
@@ -35,19 +33,18 @@ const mockReference: MockReference = {
 	store: "mock",
 };
 
-const mockPayloadWithReference = {
+const mockPayloadWithReference: MockInput = {
 	"@middy-store": mockReference,
 };
 
-const mockPayload = {
+const mockPayload: MockInput = {
 	foo: "bar",
 };
 
-const mockLoadInput: LoadInput<typeof mockPayloadWithReference, MockReference> =
-	{
-		input: mockPayloadWithReference,
-		reference: mockReference,
-	};
+const mockLoadInput: LoadInput<MockInput, MockReference> = {
+	input: mockPayloadWithReference as any,
+	reference: mockReference,
+};
 
 const mockStoreOutput: StoreOutput<typeof mockPayload, typeof mockPayload> = {
 	input: mockPayload,
@@ -63,6 +60,24 @@ const mockStore: Store = {
 	canStore: vi.fn(),
 	store: vi.fn(),
 };
+
+const useLoadInput = <TInput = any>(
+	options: LoadInputMiddlewareOptions<TInput>,
+) =>
+	middy()
+		.use(loadInput(options))
+		.handler(async (input) => {
+			return input;
+		});
+
+const useStoreOutput = <TInput = any, TOutput = any>(
+	options: StoreOutputMiddlewareOptions<TInput, TOutput>,
+) =>
+	middy()
+		.use(storeOutput(options))
+		.handler(async (input) => {
+			return input;
+		});
 
 beforeAll(() => {
 	vi.resetAllMocks();

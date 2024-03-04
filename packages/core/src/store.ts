@@ -56,30 +56,28 @@ export type LoadInput<TInput = unknown, TReference = unknown> = {
 	reference: TReference;
 };
 
-export interface Store {
+export interface Store<TInput = unknown, TOutput = unknown> {
 	name: string;
-	canLoad(input: LoadInput): boolean;
-	load(input: LoadInput): Promise<Payload>;
-	canStore(output: StoreOutput): boolean;
-	store(output: StoreOutput): Promise<Reference>;
+	canLoad(input: LoadInput<TInput>): boolean;
+	load(input: LoadInput<TInput>): Promise<Payload>;
+	canStore(output: StoreOutput<TInput, TOutput>): boolean;
+	store(output: StoreOutput<TInput, TOutput>): Promise<Reference>;
 }
 
-interface MiddlewareOptions {
-	stores: [Store, ...Store[]];
+interface MiddlewareOptions<TInput = unknown, TOutput = unknown> {
+	stores: [Store<TInput, TOutput>, ...Store<TInput, TOutput>[]];
 	logger?: (...args: any[]) => void;
 	passThrough?: boolean;
 }
 
-export interface LoadInputMiddlewareOptions<TInput = unknown>
-	extends MiddlewareOptions {
+export interface LoadInputMiddlewareOptions<TInput>
+	extends MiddlewareOptions<TInput> {
 	// selector?: InputSelector<TInput>; // TODO
 	// replacer?: InputReplacer<TInput>; // TODO
 }
 
-export interface StoreOutputMiddlewareOptions<
-	TInput = unknown,
-	TOutput = unknown,
-> extends MiddlewareOptions {
+export interface StoreOutputMiddlewareOptions<TInput, TOutput>
+	extends MiddlewareOptions<TInput, TOutput> {
 	/**
 	 * Selects the payload that should be saved in the store.
 	 * If no selector is specified, the entire output will be saved in the store.
@@ -145,9 +143,9 @@ const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
  * The selector is only to create temporary payloads to control the flow of the state machine between states.
  */
 
-export const loadInput = <TInput = unknown, TOutput = any>(
+export const loadInput = <TInput = unknown>(
 	opts: LoadInputMiddlewareOptions<TInput>,
-): middy.MiddlewareObj<TInput, TOutput> => {
+): middy.MiddlewareObj<TInput, unknown> => {
 	const { stores, passThrough } = opts;
 	const logger = opts.logger ?? DEFAULT_DUMMY_LOGGER;
 	// TODO implement selector
@@ -223,7 +221,7 @@ export const loadInput = <TInput = unknown, TOutput = any>(
 	};
 };
 
-export const storeOutput = <TInput = unknown, TOutput = any>(
+export const storeOutput = <TInput = unknown, TOutput = unknown>(
 	opts: StoreOutputMiddlewareOptions<TInput, TOutput>,
 ): middy.MiddlewareObj<TInput, TOutput> => {
 	const { stores, passThrough } = opts;
