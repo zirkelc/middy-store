@@ -22,7 +22,7 @@
     "build": "pnpm -r --no-bail build",
     "lint": "biome check . --apply --no-errors-on-unmatched",
     "prepare": "husky",
-    "publish:alpha": "pnpm -r version prerelease --preid alpha && pnpm -r publish --tag alpha --dry-run"
+    "publish:alpha": "pnpm -r publish:alpha"
   },
   "keywords": [],
   "author": "",

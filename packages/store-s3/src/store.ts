@@ -122,7 +122,7 @@ export class S3Store<TPayload = any> implements Store {
 		return false;
 	}
 
-	async load(input: LoadInput<S3Reference>): Promise<TPayload> {
+	async load(input: LoadInput<unknown, S3Reference>): Promise<TPayload> {
 		const { bucket, key } = this.parseS3Reference(input.reference);
 		const result = await this.#client.send(
 			new GetObjectCommand({ Bucket: bucket, Key: key }),

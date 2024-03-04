@@ -36,12 +36,12 @@ const mockPayload = {
 	foo: "bar",
 };
 
-const mockLoadInput: LoadInput<S3Reference> = {
+const mockLoadInput: LoadInput<typeof mockPayloadWithReference, S3Reference> = {
 	input: mockPayloadWithReference,
 	reference: mockObjectReference,
 };
 
-const mockStoreOutput: StoreOutput = {
+const mockStoreOutput: StoreOutput<typeof mockPayload, typeof mockPayload> = {
 	input: mockPayload,
 	output: mockPayload,
 	payload: mockPayload,

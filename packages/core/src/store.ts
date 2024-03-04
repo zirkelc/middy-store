@@ -44,22 +44,22 @@ export type StoreOptions = {
 	maxSize?: number;
 };
 
-export type StoreOutput = {
-	input: any;
-	output: any;
+export type StoreOutput<TInput = unknown, TOutput = unknown> = {
+	input: TInput;
+	output: TOutput;
 	payload: any;
 	byteSize: number;
 };
 
-export type LoadInput<TReference> = {
-	input: any;
+export type LoadInput<TInput = unknown, TReference = unknown> = {
+	input: TInput;
 	reference: TReference;
 };
 
 export interface Store {
 	name: string;
-	canLoad(input: LoadInput<unknown>): boolean;
-	load(input: LoadInput<unknown>): Promise<Payload>;
+	canLoad(input: LoadInput): boolean;
+	load(input: LoadInput): Promise<Payload>;
 	canStore(output: StoreOutput): boolean;
 	store(output: StoreOutput): Promise<Reference>;
 }

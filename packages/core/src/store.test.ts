@@ -43,12 +43,13 @@ const mockPayload = {
 	foo: "bar",
 };
 
-const mockLoadInput: LoadInput<MockReference> = {
-	input: mockPayloadWithReference,
-	reference: mockReference,
-};
+const mockLoadInput: LoadInput<typeof mockPayloadWithReference, MockReference> =
+	{
+		input: mockPayloadWithReference,
+		reference: mockReference,
+	};
 
-const mockStoreOutput: StoreOutput = {
+const mockStoreOutput: StoreOutput<typeof mockPayload, typeof mockPayload> = {
 	input: mockPayload,
 	output: mockPayload,
 	payload: mockPayload,
