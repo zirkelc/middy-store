@@ -46,6 +46,12 @@ export function tryStringifyJSON(object: unknown): string | false {
 	return false;
 }
 
+export const isMiddyStore = <TReference = any>(
+	obj: unknown,
+): obj is MiddyStore<TReference> => {
+	return typeof obj === "object" && obj !== null && MIDDY_STORE in obj;
+};
+
 export function calculateByteSize(payload: any) {
 	if (typeof payload === "string") return Buffer.byteLength(payload);
 

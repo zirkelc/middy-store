@@ -10,6 +10,7 @@ import type { LoadInput, Store, StoreOptions, StoreOutput } from "middy-store";
 import {
 	coerceFunction,
 	formatS3Arn,
+	formatS3Reference,
 	formatS3Uri,
 	isS3Arn,
 	isS3Object,
@@ -17,6 +18,7 @@ import {
 	isValidBucket,
 	isValidKey,
 	parseS3Arn,
+	parseS3Reference,
 	parseS3Uri,
 	uuidKey,
 } from "./utils.js";
@@ -44,10 +46,11 @@ type KeyMaker<TInput = unknown, TOutput = unknown> =
 	| string
 	| ((output: StoreOutput<TInput, TOutput>) => string);
 
-export interface S3StoreOptions<TPaylod = any> extends StoreOptions {
+export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
+	extends StoreOptions {
 	config?: S3ClientConfig;
 	bucket: string;
-	key?: KeyMaker;
+	key?: KeyMaker<TInput, TOutput>;
 	format?: S3ReferenceFormat; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
 	logger?: (...args: any[]) => void;
 }
@@ -67,7 +70,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	// onLoad?: (input: LoadInput<S3Reference>) => boolean | GetObjectCommandInput;
 	// onStore?: (output: StoreOutput) => boolean | PutObjectCommandInput;
 
-	constructor(opts: S3StoreOptions) {
+	constructor(opts: S3StoreOptions<TInput, TOutput>) {
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#bucket = opts.bucket;
 		this.#key = opts.key ?? uuidKey;
@@ -127,7 +130,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	}
 
 	async load(input: LoadInput<TInput, S3Reference>): Promise<unknown> {
-		const { bucket, key } = this.parseS3Reference(input.reference);
+		const { bucket, key } = parseS3Reference(input.reference);
 		const result = await this.#client.send(
 			new GetObjectCommand({ Bucket: bucket, Key: key }),
 		);
@@ -209,25 +212,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 		this.#logger("Sucessfully stored payload", { bucket, key });
 
-		return this.formatS3Reference({ bucket, key });
-	}
-
-	private parseS3Reference(reference: S3Reference): S3Object {
-		if (isS3Arn(reference)) return parseS3Arn(reference);
-		if (isS3Uri(reference)) return parseS3Uri(reference);
-		if (isS3Object(reference)) return reference;
-
-		throw new Error(`Invalid S3 reference: ${reference}`);
-	}
-
-	private formatS3Reference(reference: S3Object): S3Reference {
-		if (this.#format === "ARN")
-			return formatS3Arn(reference.bucket, reference.key);
-		if (this.#format === "URI")
-			return formatS3Uri(reference.bucket, reference.key);
-		if (this.#format === "OBJECT") return { ...reference, store: this.name };
-
-		throw new Error(`Invalid reference format: ${this.#format}`);
+		return formatS3Reference({ bucket, key }, this.#format);
 	}
 
 	private serizalizePayload(payload: unknown): Partial<PutObjectCommandInput> {
