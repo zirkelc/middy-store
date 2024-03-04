@@ -2,6 +2,7 @@
   "name": "middy-store-example-s3",
   "version": "1.0.0",
   "description": "",
+  "private": true,
   "type": "module",
   "main": "index.ts",
   "scripts": {
