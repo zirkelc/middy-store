@@ -56,16 +56,50 @@ export type LoadInput<TInput = unknown, TReference = unknown> = {
 	reference: TReference;
 };
 
-export interface Store<TInput = unknown, TOutput = unknown> {
+// export interface Store<TInput = unknown, TOutput = unknown> {
+// 	name: string;
+// 	canLoad?: (input: LoadInput<TInput>) => boolean;
+// 	load?: (input: LoadInput<TInput>) => Promise<Payload>;
+// 	canStore?: (output: StoreOutput<TInput, TOutput>) => boolean;
+// 	store?: (output: StoreOutput<TInput, TOutput>) => Promise<Reference>;
+// }
+
+export interface Store<
+	TInput = unknown,
+	TOutput = unknown,
+	TReference = unknown,
+> extends ReadableStore<TInput, TOutput, TReference>,
+		WritableStore<TInput, TOutput, TReference> {
 	name: string;
-	canLoad(input: LoadInput<TInput>): boolean;
-	load(input: LoadInput<TInput>): Promise<Payload>;
-	canStore(output: StoreOutput<TInput, TOutput>): boolean;
-	store(output: StoreOutput<TInput, TOutput>): Promise<Reference>;
+}
+
+export interface ReadableStore<
+	TInput = unknown,
+	TOutput = unknown,
+	TReference = unknown,
+> {
+	name: string;
+	canLoad: (input: LoadInput<TInput, TReference | unknown>) => boolean;
+	load: (input: LoadInput<TInput, TReference>) => Promise<Payload>;
+}
+
+export interface WritableStore<
+	TInput = unknown,
+	TOutput = unknown,
+	TReference = unknown,
+> {
+	name: string;
+	canStore: (output: StoreOutput<TInput, TOutput>) => boolean;
+	store: (output: StoreOutput<TInput, TOutput>) => Promise<TReference>;
 }
 
 interface MiddlewareOptions<TInput = unknown, TOutput = unknown> {
-	stores: [Store<TInput, TOutput>, ...Store<TInput, TOutput>[]];
+	// stores: [Store<TInput, TOutput>, ...Store<TInput, TOutput>[]];
+	stores: Array<
+		| Store<TInput, TOutput>
+		| ReadableStore<TInput, TOutput>
+		| WritableStore<TInput, TOutput>
+	>;
 	logger?: (...args: any[]) => void;
 	passThrough?: boolean;
 }
@@ -143,6 +177,9 @@ const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
  * The selector is only to create temporary payloads to control the flow of the state machine between states.
  */
 
+// TODO merge loadInput and storeOutput into one middleware with read and write options
+// TODO rename load to read and store to write
+
 export const loadInput = <TInput = unknown>(
 	opts: LoadInputMiddlewareOptions<TInput>,
 ): middy.MiddlewareObj<TInput, unknown> => {
@@ -185,7 +222,10 @@ export const loadInput = <TInput = unknown>(
 			};
 
 			// find a store that can load the reference
-			const store = stores.find((store) => store.canLoad(loadInput));
+			const store = stores.find(
+				(store): store is ReadableStore =>
+					"canLoad" in store && "load" in store && store.canLoad(loadInput),
+			);
 			if (!store) {
 				if (passThrough) {
 					logger(`No store was found to load reference, passthrough input`);
@@ -283,7 +323,10 @@ export const storeOutput = <TInput = unknown, TOutput = unknown>(
 		// find a store that can store the payload
 		// if there are multiple stores, store the response in the first store that accepts the response
 		// if no store accepts the response, leave the response untouched
-		const store = stores.find((store) => store.canStore(storeOutput));
+		const store = stores.find(
+			(store): store is WritableStore =>
+				"canStore" in store && "store" in store && store.canStore(storeOutput),
+		);
 		if (!store) {
 			if (passThrough) {
 				logger(`No store was found to store payload, passthrough output`);

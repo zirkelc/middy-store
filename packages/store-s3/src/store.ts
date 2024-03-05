@@ -56,7 +56,7 @@ export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
 }
 
 export class S3Store<TInput = unknown, TOutput = unknown>
-	implements Store<TInput, TOutput>
+	implements Store<TInput, TOutput, S3Reference>
 {
 	readonly name = "s3" as const;
 
@@ -93,7 +93,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			return false;
 
 		// reference must be defined
-		const { reference } = input as LoadInput<S3Reference>;
+		const { reference } = input;
 		if (reference === null || reference === undefined) return false;
 
 		// // resolve bucket and key from options
