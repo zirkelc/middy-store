@@ -1,7 +1,15 @@
 import get from "lodash.get";
 import set from "lodash.set";
 import toPath from "lodash.topath";
-import type { MiddyStore, Path } from "./store.js";
+import type {
+	LoadInput,
+	MiddyStore,
+	Path,
+	ReadableStore,
+	Store,
+	StoreOutput,
+	WritableStore,
+} from "./store.js";
 import { MIDDY_STORE } from "./store.js";
 
 export function tryParseJSON(json: string | undefined): object | false {
@@ -46,11 +54,11 @@ export function tryStringifyJSON(object: unknown): string | false {
 	return false;
 }
 
-export const isMiddyStore = <TReference = any>(
-	obj: unknown,
-): obj is MiddyStore<TReference> => {
-	return typeof obj === "object" && obj !== null && MIDDY_STORE in obj;
-};
+// export const isReadableStore = (store: Store | ReadableStore | WritableStore, input: LoadInput): store is ReadableStore =>
+// 	"canLoad" in store && "load" in store && store.canLoad(input);
+
+// export const isWritableStore = (store: ReadableStore | WritableStore, output: StoreOutput): store is WritableStore =>
+// 	"canStore" in store && "store" in store && store.canStore(output);
 
 export function calculateByteSize(payload: any) {
 	if (typeof payload === "string") return Buffer.byteLength(payload);
@@ -124,6 +132,19 @@ type FindReferenceResult = {
 // 		if (nextResult) return nextResult;
 // 	}
 // }
+
+export const hasReference = <TReference = any>(
+	obj: unknown,
+): obj is MiddyStore<TReference> => {
+	return typeof obj === "object" && obj !== null && MIDDY_STORE in obj;
+};
+
+export const getReference = <TReference = any>(
+	obj: unknown,
+): TReference | undefined => {
+	return hasReference(obj) ? obj[MIDDY_STORE] : undefined;
+};
+
 export function findAllReferences(
 	result: Record<string, any>,
 	path: Array<string> = [],
@@ -133,10 +154,12 @@ export function findAllReferences(
 	// Check if the result itself is null or not an object
 	if (result === null || typeof result !== "object") return references;
 
-	// Check for the REFERENCE_KEY in the current level of the object
-	if (result[MIDDY_STORE]) {
-		references.push({ reference: result[MIDDY_STORE], path });
-	}
+	// Check for the reference in the current level of the object
+	const reference = getReference(result);
+	if (reference) references.push({ reference, path });
+	// if (result[MIDDY_STORE]) {
+	// 	references.push({ reference: result[MIDDY_STORE], path });
+	// }
 
 	// Iterate through the object recursively to find all references
 	for (const key in result) {

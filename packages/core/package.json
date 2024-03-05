@@ -1,6 +1,6 @@
 {
   "name": "middy-store",
-  "version": "0.0.0-alpha.8",
+  "version": "0.0.0-alpha.10",
   "description": "",
   "repository": "https://github.com/zirkelc/middy-store.git",
   "type": "module",
@@ -8,8 +8,14 @@
   "module": "./src/index.ts",
   "exports": {
     ".": {
-      "import": "./src/index.ts",
-      "require": "./src/index.ts"
+      "require": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "import": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      }
     }
   },
   "files": [
@@ -20,8 +26,14 @@
     "module": "./dist/index.cjs",
     "exports": {
       ".": {
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        },
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
       }
     }
   },

@@ -7,19 +7,16 @@ import {
 	S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import type { LoadInput, Store, StoreOptions, StoreOutput } from "middy-store";
+import { S3UrlFormat, isS3Url, parseS3Url } from "./format.js";
 import {
 	coerceFunction,
-	formatS3Arn,
 	formatS3Reference,
-	formatS3Uri,
 	isS3Arn,
 	isS3Object,
-	isS3Uri,
 	isValidBucket,
 	isValidKey,
 	parseS3Arn,
 	parseS3Reference,
-	parseS3Uri,
 	uuidKey,
 } from "./utils.js";
 
@@ -29,7 +26,10 @@ export type S3ArnReference = string;
 
 export type S3UriReference = string;
 
-export type S3ReferenceFormat = "ARN" | "URI" | "OBJECT";
+export type S3ReferenceFormat =
+	| { type: "arn" }
+	| { type: "object" }
+	| { type: "url"; format: S3UrlFormat };
 
 export interface S3ObjectReference {
 	store: "s3";
@@ -40,6 +40,7 @@ export interface S3ObjectReference {
 export type S3Object = {
 	bucket: string;
 	key: string;
+	region?: string;
 };
 
 type KeyMaker<TInput = unknown, TOutput = unknown> =
@@ -51,7 +52,7 @@ export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
 	config?: S3ClientConfig;
 	bucket: string;
 	key?: KeyMaker<TInput, TOutput>;
-	format?: S3ReferenceFormat; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
+	format?: "arn" | "object" | "url" | S3ReferenceFormat; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
 	logger?: (...args: any[]) => void;
 }
 
@@ -74,12 +75,33 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#bucket = opts.bucket;
 		this.#key = opts.key ?? uuidKey;
-		this.#format = opts.format ?? "OBJECT";
+
 		this.#client = new S3Client({
 			...opts.config,
 		});
 
 		this.#logger = opts.logger ?? (() => {});
+
+		this.#format =
+			opts.format === undefined
+				? { type: "url", format: "s3-global-path" }
+				: opts.format === "url"
+				  ? { type: "url", format: "s3-global-path" }
+				  : opts.format === "arn"
+					  ? { type: "arn" }
+					  : opts.format === "object"
+						  ? { type: "object" }
+						  : opts.format;
+
+		if (
+			this.#format.type === "url" &&
+			this.#format.format.includes("region") &&
+			!opts.config?.region
+		) {
+			throw new Error(
+				`Region is required for region-specific url format: ${this.#format.format}. Use config.region to provide the region.`,
+			);
+		}
 	}
 
 	canLoad(input: LoadInput<TInput, unknown>): boolean {
@@ -112,12 +134,11 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 		if (isS3Arn(reference)) {
 			const { bucket } = parseS3Arn(reference);
-
 			return bucket === this.#bucket;
 		}
 
-		if (isS3Uri(reference)) {
-			const { bucket } = parseS3Uri(reference);
+		if (isS3Url(reference)) {
+			const { bucket } = parseS3Url(reference);
 			return bucket === this.#bucket;
 		}
 

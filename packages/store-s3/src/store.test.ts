@@ -371,7 +371,7 @@ describe("S3Store.store", () => {
 	);
 
 	test(`should format reference as ARN`, async () => {
-		const s3Store = new S3Store({ bucket, key, format: "ARN" });
+		const s3Store = new S3Store({ bucket, key, format: "arn" });
 		const input = mockStoreOutput;
 
 		const output = await s3Store.store(input);
@@ -380,7 +380,7 @@ describe("S3Store.store", () => {
 	});
 
 	test(`should format reference as URI`, async () => {
-		const s3Store = new S3Store({ bucket, key, format: "URI" });
+		const s3Store = new S3Store({ bucket, key, format: "url" });
 		const input = mockStoreOutput;
 
 		const output = await s3Store.store(input);
@@ -389,7 +389,7 @@ describe("S3Store.store", () => {
 	});
 
 	test(`should format reference as object`, async () => {
-		const s3Store = new S3Store({ bucket, key, format: "OBJECT" });
+		const s3Store = new S3Store({ bucket, key, format: "object" });
 		const input = mockStoreOutput;
 
 		const output = await s3Store.store(input);

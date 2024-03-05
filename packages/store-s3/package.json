@@ -1,14 +1,20 @@
 {
   "name": "middy-store-s3",
-  "version": "0.0.0-alpha.9",
+  "version": "0.0.0-alpha.11",
   "description": "",
   "type": "module",
   "main": "./src/index.ts",
   "module": "./src/index.ts",
   "exports": {
     ".": {
-      "import": "./src/index.ts",
-      "require": "./src/index.ts"
+      "require": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "import": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      }
     }
   },
   "files": [
@@ -19,8 +25,14 @@
     "module": "./dist/index.cjs",
     "exports": {
       ".": {
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        },
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
       }
     }
   },
