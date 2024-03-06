@@ -16,16 +16,17 @@ import {
 
 const bucket = "bucket";
 const key = "key";
-const uri = "s3://bucket/key";
+const region = "eu-west-1";
 
 const mockArnReference = "arn:aws:s3:::bucket/key";
 
-const mockUriReference = "s3://bucket/key";
+const mockUrlReference = "s3://bucket/key";
 
 const mockObjectReference: S3ObjectReference = {
 	store: "s3",
 	bucket,
 	key,
+	region,
 };
 
 const mockPayloadWithReference = {
@@ -212,7 +213,7 @@ describe("S3Store.load", () => {
 	test(`should load from URI reference`, async () => {
 		const payload = mockPayload;
 		const spy = mockClient(JSON.stringify(payload), "application/json");
-		const input = { ...mockLoadInput, reference: mockUriReference };
+		const input = { ...mockLoadInput, reference: mockUrlReference };
 
 		const output = await s3Store.load(input);
 
@@ -326,7 +327,7 @@ describe("S3Store.store", () => {
 
 		const output = await s3Store.store(input);
 
-		expect(output).toEqual(mockObjectReference);
+		expect(output).toEqual(mockUrlReference);
 		expect(spy).toHaveBeenCalled();
 
 		const request = spy.mock.calls[0][0].input as PutObjectRequest;
@@ -345,7 +346,7 @@ describe("S3Store.store", () => {
 
 		const output = await s3Store.store(input);
 
-		expect(output).toEqual(mockObjectReference);
+		expect(output).toEqual(mockUrlReference);
 		expect(spy).toHaveBeenCalled();
 
 		const request = spy.mock.calls[0][0].input as PutObjectRequest;
@@ -385,7 +386,7 @@ describe("S3Store.store", () => {
 
 		const output = await s3Store.store(input);
 
-		expect(output).toEqual(mockUriReference);
+		expect(output).toEqual(mockUrlReference);
 	});
 
 	test(`should format reference as object`, async () => {

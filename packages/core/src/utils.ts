@@ -6,6 +6,7 @@ import type {
 	MiddyStore,
 	Path,
 	ReadableStore,
+	Size,
 	Store,
 	StoreOutput,
 	WritableStore,
@@ -96,42 +97,41 @@ export function replacePayloadByPath({
 }: ReplacePayloadWithReferenceArgs): Record<string, any> {
 	const pathArray = toPath(path);
 
-	return pathArray.length === 0 ? reference : set(output, pathArray, reference);
+	if (pathArray.length === 0) return reference;
+
+	// // If the path ends with "[]", it means we are pushing the reference into an array
+	// // If the parent element is an array, we push the reference into it
+	// // Otherwise we create a new array with the reference
+	// if (path.endsWith("[]")) {
+	// 	const parentPath = pathArray.slice(0, -1);
+	// 	const parent = get(output, parentPath);
+	// 	if (Array.isArray(parent)) {
+	// 		return set(output, parentPath, parent.concat(reference));
+	// 	}
+
+	// 	// TODO check if that works
+	// 	// if (Array.isArray(reference)) {
+	// 	// 	return set(output, pathArray, reference);
+	// 	// }
+
+	// 	return set(output, parentPath, [reference]);
+	// }
+
+	return set(output, pathArray, reference);
 }
 
 export function replaceReferenceByPath(
 	result: Record<string, any>,
 	path: Array<string>,
-	storePayload: any,
+	payload: any,
 ): Record<string, any> {
-	return path.length === 0 ? storePayload : set(result, path, storePayload);
+	return path.length === 0 ? payload : set(result, path, payload);
 }
 
 type FindReferenceResult = {
 	reference: any;
 	path: Array<string>;
 };
-
-// export function findReferences(
-// 	result: Record<string, any>,
-// 	path: Array<string> = [],
-// ): FindReferenceResult | undefined {
-// 	if (result === null || typeof result !== "object") return;
-// 	if (result[REFERENCE_KEY]) return { reference: result[REFERENCE_KEY], path };
-
-// 	for (const key in result) {
-// 		if (result[key] === null || typeof result[key] !== "object") continue;
-
-// 		// const nextPath = path ? `${path}.${key}` : key;
-// 		const nextPath = path.concat(key);
-
-// 		if (result[key][REFERENCE_KEY])
-// 			return { reference: result[key][REFERENCE_KEY], path: nextPath };
-
-// 		const nextResult = findReferences(result[key], nextPath);
-// 		if (nextResult) return nextResult;
-// 	}
-// }
 
 export const hasReference = <TReference = any>(
 	obj: unknown,
@@ -175,4 +175,33 @@ export function findAllReferences(
 	}
 
 	return references;
+}
+
+export const MAX_SIZE_STEPFUNCTIONS = 256 * 1024; // 256KB
+export const MAX_SIZE_LAMBDA_SYNC = 6 * 1024 * 1024; // 6MB
+export const MAX_SIZE_LAMBDA_ASYNC = 256 * 1024; // 256KB
+
+export function sizeToNumber(size: Size): number {
+	if (typeof size === "number") return size;
+
+	switch (size) {
+		case "always":
+			return 0;
+
+		case "never":
+			return Number.POSITIVE_INFINITY;
+
+		case "stepfunctions":
+			return MAX_SIZE_STEPFUNCTIONS;
+
+		case "lambda-sync":
+			return MAX_SIZE_LAMBDA_SYNC;
+
+		case "lambda-async":
+			return MAX_SIZE_LAMBDA_ASYNC;
+
+		default:
+			size satisfies never;
+			throw new Error(`Unsupported size: ${size}`);
+	}
 }

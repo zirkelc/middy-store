@@ -146,9 +146,16 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.507.0
         version: 3.525.0
+      amazon-s3-url:
+        specifier: ^1.0.0
+        version: 1.0.0
       middy-store:
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@smithy/types':
+        specifier: ^2.10.1
+        version: 2.10.1
 
 packages:
 
@@ -2287,6 +2294,10 @@ packages:
       require-from-string: 2.0.2
       uri-js: 4.4.1
     dev: true
+
+  /amazon-s3-url@1.0.0:
+    resolution: {integrity: sha512-N3QTxLb7DVRJfdo371RxpIXtqdubgC6oFDnwyI3ZRr7fB+FZKrOCK5wbAEB5squhf9Wv8ccaO2J1E1knNElP7A==}
+    dev: false
 
   /ansi-escapes@4.3.2:
     resolution: {integrity: sha512-gKXj5ALrKWQLsYG9jlTRmR/xKluxHV+Z9QEwNIgCfM1/uwPMCuzVVnh5mwTd+OuBZcwSIMbqssNWRm1lE51QaQ==}

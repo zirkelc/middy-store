@@ -278,7 +278,7 @@ describe("storeOutput", () => {
 
 		const handler = useStoreOutput({
 			stores: [mockStore],
-			maxSize: 0,
+			size: 0,
 			passThrough: true,
 		});
 
@@ -296,7 +296,7 @@ describe("storeOutput", () => {
 
 		const handler = useStoreOutput({
 			stores: [mockStore],
-			maxSize: 0,
+			size: 0,
 			passThrough: false,
 		});
 
@@ -315,7 +315,7 @@ describe("storeOutput", () => {
 
 		const handler = useStoreOutput({
 			stores: [mockStore],
-			maxSize: 0,
+			size: 0,
 		});
 
 		const input = mockPayload;
@@ -339,7 +339,7 @@ describe("storeOutput", () => {
 
 			const handler = useStoreOutput({
 				stores: [mockStore],
-				maxSize: 0,
+				size: 0,
 				selector,
 			});
 
@@ -366,7 +366,7 @@ describe("storeOutput", () => {
 
 			const handler = useStoreOutput({
 				stores: [mockStore],
-				maxSize: 0,
+				size: 0,
 				selector,
 			});
 

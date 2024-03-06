@@ -5,11 +5,13 @@ import set from "lodash.set";
 import toPath from "lodash.topath";
 import { T, s } from "vitest/dist/reporters-MmQN-57K.js";
 import {
+	MAX_SIZE_STEPFUNCTIONS,
 	calculateByteSize,
 	findAllReferences,
 	replacePayloadByPath,
 	replaceReferenceByPath,
 	selectPayloadByPath,
+	sizeToNumber,
 } from "./utils.js";
 
 // https://middy.js.org/docs/writing-middlewares/configurable-middlewares
@@ -26,9 +28,11 @@ export type Reference<TReference = any> = TReference;
 // https://lodash.com/docs/4.17.15#get
 export type Path = string;
 
+// TODO: add support for payload[]
 export type InputSelector<TInput> = Path | ((args: { input: TInput }) => any);
 export type InputReplacer<TInput> = Path | ((args: { input: TInput }) => any);
 
+// TODO: add support for payload[]
 export type OutputSelector<TInput, TOutput> =
 	| Path
 	| ((args: { input: TInput; output: TOutput }) => any);
@@ -39,6 +43,18 @@ export type OutputReplacer<TInput, TOutput> =
 			output: TOutput;
 			reference: MiddyStore<any>;
 	  }) => any);
+
+export type Size =
+	| number
+	| "always"
+	| "never"
+	| "stepfunctions"
+	| "lambda-sync"
+	| "lambda-async";
+
+export type OutputSize<TInput, TOutput> =
+	| Size
+	| ((args: { input: TInput; output: TOutput }) => Size);
 
 export type StoreOptions = {
 	maxSize?: number;
@@ -151,10 +167,9 @@ export interface StoreOutputMiddlewareOptions<TInput, TOutput>
 	 * ```
 	 */
 	replacer?: OutputReplacer<TInput, TOutput>;
-	maxSize?: number; // TODO as function with full input and output
+	size?: OutputSize<TInput, TOutput>;
 }
 
-const DEFAULT_MAX_SIZE = 256 * 1024; // 256KB
 const DEFAULT_OUTPUT_SELECTOR = "";
 // const DEFAULT_REPLACER: Replacer = [];
 const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
@@ -267,7 +282,7 @@ export const storeOutput = <TInput = unknown, TOutput = unknown>(
 	const { stores, passThrough } = opts;
 	const selector = opts.selector ?? DEFAULT_OUTPUT_SELECTOR;
 	const replacer = opts.replacer ?? selector;
-	const maxSize = opts.maxSize ?? DEFAULT_MAX_SIZE;
+	const size = opts.size ?? MAX_SIZE_STEPFUNCTIONS;
 	const logger = opts.logger ?? DEFAULT_DUMMY_LOGGER;
 
 	const after: middy.MiddlewareFn = async (request) => {
@@ -287,6 +302,9 @@ export const storeOutput = <TInput = unknown, TOutput = unknown>(
 		// if it does, store the response in the store
 		// if it doesn't, leave the response untouched
 		// if maxSize is 0, always store the response in the store
+		const maxSize = sizeToNumber(
+			typeof size === "function" ? size({ input, output }) : size,
+		);
 		const byteSize = calculateByteSize(output);
 		if (maxSize > 0 && byteSize < maxSize) {
 			logger(

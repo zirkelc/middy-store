@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
-import { formatS3Url, isS3Url, parseS3Url } from "./format.js";
-import { S3Object, S3Reference, S3ReferenceFormat } from "./store.js";
+import { S3Object, formatS3Url, isS3Url, parseS3Url } from "amazon-s3-url";
+import { S3Reference, S3ReferenceFormat } from "./store.js";
 
 export const uuidKey = () => randomUUID();
 

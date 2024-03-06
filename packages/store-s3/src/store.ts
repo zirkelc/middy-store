@@ -6,8 +6,8 @@ import {
 	S3Client,
 	S3ClientConfig,
 } from "@aws-sdk/client-s3";
+import { S3UrlFormat, isS3Url, parseS3Url } from "amazon-s3-url";
 import type { LoadInput, Store, StoreOptions, StoreOutput } from "middy-store";
-import { S3UrlFormat, isS3Url, parseS3Url } from "./format.js";
 import {
 	coerceFunction,
 	formatS3Reference,
@@ -35,13 +35,14 @@ export interface S3ObjectReference {
 	store: "s3";
 	bucket: string;
 	key: string;
+	region?: string;
 }
 
-export type S3Object = {
-	bucket: string;
-	key: string;
-	region?: string;
-};
+// export type S3Object = {
+// 	bucket: string;
+// 	key: string;
+// 	region?: string;
+// };
 
 type KeyMaker<TInput = unknown, TOutput = unknown> =
 	| string
@@ -50,6 +51,7 @@ type KeyMaker<TInput = unknown, TOutput = unknown> =
 export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
 	extends StoreOptions {
 	config?: S3ClientConfig;
+	// region?: string;
 	bucket: string;
 	key?: KeyMaker<TInput, TOutput>;
 	format?: "arn" | "object" | "url" | S3ReferenceFormat; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
@@ -63,6 +65,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 	#maxSize: number;
 	#client: S3Client;
+	// #region: string | Provider<string> | undefined;
 	#bucket: string;
 	#key: KeyMaker<TInput, TOutput>;
 	#format: S3ReferenceFormat;
@@ -75,11 +78,12 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#bucket = opts.bucket;
 		this.#key = opts.key ?? uuidKey;
+		// this.#region = opts.region ?? opts.config?.region;
 
 		this.#client = new S3Client({
+			// region: opts.region,
 			...opts.config,
 		});
-
 		this.#logger = opts.logger ?? (() => {});
 
 		this.#format =
@@ -99,7 +103,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			!opts.config?.region
 		) {
 			throw new Error(
-				`Region is required for region-specific url format: ${this.#format.format}. Use config.region to provide the region.`,
+				`Region is required for region-specific url format: ${this.#format.format}`,
 			);
 		}
 	}
@@ -139,6 +143,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 		if (isS3Url(reference)) {
 			const { bucket } = parseS3Url(reference);
+			// TODO check region matches config.region?
 			return bucket === this.#bucket;
 		}
 
@@ -212,11 +217,13 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		// const bucketFn = coerceFunction(this.#storeOptions.bucket); // typeof this.#storeOptions.bucket === 'function' ? this.#storeOptions.bucket(output) : this.#storeOptions.bucket;
 		// const keyFn = coerceFunction(this.#storeOptions.key);
 
+		const regionFn = coerceFunction(this.#client.config.region);
+		const region = await regionFn();
 		const bucket = this.#bucket;
 		const keyFn = coerceFunction(this.#key);
 		const key = keyFn(output);
 		const { payload } = output;
-		this.#logger("Resolved bucket and key", { bucket, key });
+		this.#logger("Resolved bucket and key", { bucket, key, region });
 
 		try {
 			await this.#client.send(
@@ -233,7 +240,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 		this.#logger("Sucessfully stored payload", { bucket, key });
 
-		return formatS3Reference({ bucket, key }, this.#format);
+		return formatS3Reference({ bucket, key, region }, this.#format);
 	}
 
 	private serizalizePayload(payload: unknown): Partial<PutObjectCommandInput> {
