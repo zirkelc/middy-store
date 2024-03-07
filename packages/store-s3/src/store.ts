@@ -7,7 +7,7 @@ import {
 	S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import { S3UrlFormat, isS3Url, parseS3Url } from "amazon-s3-url";
-import type { LoadInput, Store, StoreOptions, StoreOutput } from "middy-store";
+import type { ReadInput, Store, StoreOptions, WriteOutput } from "middy-store";
 import {
 	coerceFunction,
 	formatS3Reference,
@@ -46,7 +46,7 @@ export interface S3ObjectReference {
 
 type KeyMaker<TInput = unknown, TOutput = unknown> =
 	| string
-	| ((output: StoreOutput<TInput, TOutput>) => string);
+	| ((output: WriteOutput<TInput, TOutput>) => string);
 
 export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
 	extends StoreOptions {
@@ -108,8 +108,8 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		}
 	}
 
-	canLoad(input: LoadInput<TInput, unknown>): boolean {
-		this.#logger("Checking if store can load");
+	canRead(input: ReadInput<TInput, unknown>): boolean {
+		this.#logger("Checking if store can load input");
 
 		// setting load options to false will disable loading completely
 		// if (this.#loadOptions === false) return false;
@@ -155,7 +155,9 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		return false;
 	}
 
-	async load(input: LoadInput<TInput, S3Reference>): Promise<unknown> {
+	async read(input: ReadInput<TInput, S3Reference>): Promise<unknown> {
+		this.#logger("Loading payload");
+
 		const { bucket, key } = parseS3Reference(input.reference);
 		const result = await this.#client.send(
 			new GetObjectCommand({ Bucket: bucket, Key: key }),
@@ -166,8 +168,8 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		return payload;
 	}
 
-	canStore(output: StoreOutput<TInput, TOutput>): boolean {
-		this.#logger("Checking if store can store", { output });
+	canWrite(output: WriteOutput<TInput, TOutput>): boolean {
+		this.#logger("Checking if store can save output");
 
 		// setting store options to false will disable loading completely
 		// if (this.#storeOptions === false) return false;
@@ -196,15 +198,15 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			throw new Error(`Invalid key. Must be a string, but received: ${key}`);
 		}
 
-		this.#logger("Store can store", { bucket, key });
+		this.#logger("Store can save", { bucket, key });
 
 		return true;
 	}
 
-	public async store(
-		output: StoreOutput<TInput, TOutput>,
+	public async write(
+		output: WriteOutput<TInput, TOutput>,
 	): Promise<S3Reference> {
-		this.#logger("Storing payload", { output });
+		this.#logger("Saving payload");
 
 		// if (this.#storeOptions === false) {
 		// 	throw new Error("Store options are disabled");
@@ -238,7 +240,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			throw error;
 		}
 
-		this.#logger("Sucessfully stored payload", { bucket, key });
+		this.#logger("Sucessfully saved payload");
 
 		return formatS3Reference({ bucket, key, region }, this.#format);
 	}

@@ -2,14 +2,14 @@ import get from "lodash.get";
 import set from "lodash.set";
 import toPath from "lodash.topath";
 import type {
-	LoadInput,
 	MiddyStore,
 	Path,
+	ReadInput,
 	ReadableStore,
 	Size,
 	Store,
-	StoreOutput,
 	WritableStore,
+	WriteOutput,
 } from "./store.js";
 import { MIDDY_STORE } from "./store.js";
 
