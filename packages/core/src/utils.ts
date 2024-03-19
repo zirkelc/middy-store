@@ -85,6 +85,30 @@ export function selectPayloadByPath({ output, path }: SelectPayloadArgs): any {
 	return payload;
 }
 
+type GeneratePathsArgs = {
+	output: Record<string, any>;
+	selector: Path;
+};
+export function* generatePaths({
+	output,
+	selector,
+}: GeneratePathsArgs): Generator<Path> {
+	const isMultiPayload = selector.endsWith("[*]");
+	const path = isMultiPayload ? selector.slice(0, -3).trim() : selector.trim();
+
+	// const pathArray = toPath(path);
+	const payload = path.length === 0 ? output : get(output, path);
+
+	if (isMultiPayload && Array.isArray(payload)) {
+		for (let i = 0; i < payload.length; i++) {
+			const itemPath = `${path}[${i}]`;
+			yield itemPath;
+		}
+	} else {
+		yield path;
+	}
+}
+
 type ReplacePayloadWithReferenceArgs = {
 	output: any;
 	path: Path;

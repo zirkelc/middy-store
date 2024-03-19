@@ -96,16 +96,6 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 					  : opts.format === "object"
 						  ? { type: "object" }
 						  : opts.format;
-
-		if (
-			this.#format.type === "url" &&
-			this.#format.format.includes("region") &&
-			!opts.config?.region
-		) {
-			throw new Error(
-				`Region is required for region-specific url format: ${this.#format.format}`,
-			);
-		}
 	}
 
 	canRead(input: ReadInput<TInput, unknown>): boolean {
@@ -221,6 +211,17 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 		const regionFn = coerceFunction(this.#client.config.region);
 		const region = await regionFn();
+
+		if (
+			this.#format.type === "url" &&
+			this.#format.format.includes("region") &&
+			!region
+		) {
+			throw new Error(
+				`Region is required for region-specific url format: ${this.#format.format}`,
+			);
+		}
+
 		const bucket = this.#bucket;
 		const keyFn = coerceFunction(this.#key);
 		const key = keyFn(output);

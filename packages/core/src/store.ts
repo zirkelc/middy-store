@@ -3,6 +3,7 @@ import {
 	MAX_SIZE_STEPFUNCTIONS,
 	calculateByteSize,
 	findAllReferences,
+	generatePaths,
 	replacePayloadByPath,
 	replaceReferenceByPath,
 	selectPayloadByPath,
@@ -28,16 +29,14 @@ export type InputSelector<TInput> = Path | ((args: { input: TInput }) => any);
 export type InputReplacer<TInput> = Path | ((args: { input: TInput }) => any);
 
 // TODO: add support for payload[]
-export type OutputSelector<TInput, TOutput> =
-	| Path
-	| ((args: { input: TInput; output: TOutput }) => any);
-export type OutputReplacer<TInput, TOutput> =
-	| Path
-	| ((args: {
-			input: TInput;
-			output: TOutput;
-			reference: MiddyStore<any>;
-	  }) => any);
+export type OutputSelector<TInput, TOutput> = Path;
+//| ((args: { input: TInput; output: TOutput }) => any);
+export type OutputReplacer<TInput, TOutput> = Path;
+// | ((args: {
+// 	input: TInput;
+// 	output: TOutput;
+// 	reference: MiddyStore<any>;
+// }) => any);
 
 export type Size =
 	| number
@@ -124,20 +123,24 @@ export interface ReadStoreOptions<TInput> {
 export interface WriteStoreOptions<TInput, TOutput> {
 	/**
 	 * Selects the payload that should be saved in the store.
+	 *
 	 * If no selector is specified, the entire output will be saved in the store.
-	 * Then entire output will be replaced with a reference to the stored payload.
+	 * Then, the entire output will be replaced with a reference to the stored payload.
+	 * This is the same behavior as if the selector is undefined or an an empty string.
 	 *
 	 * If a selector is specified, only this part of the output will be saved in the store.
-	 * By default, the selected payload will be replaced with a reference to the stored payload.
-	 * This behavior can be changed by specifying a custom replacer.
-	 *
-	 * The selector can be a string path or an array of string paths.
+	 * Then, the selected payload will be replaced with a reference to the stored payload.
 	 * It uses Lodash's get function {@link https://lodash.com/docs/4.17.15#get | _.get() } to select the payload from the output.
+	 *
+	 * If the selector ends withs `[*]` and the selected payload is an array, then each element of the array will be saved in the store separately.
+	 * That means each element of the array will be replaced with a reference to the stored payload.
 	 *
 	 * Examples:
 	 * ```
-	 * selector: 'a[0].b.c'; // selects the payload at the path 'a[0].b.c'
-	 * selector: ['a', '0', 'b', 'c']; // selects the payload at the path 'a[0].b.c'
+	 * selector: ''; // selects the entire output as the payload
+	 * selector: 'a'; // selects the payload at the path 'a'
+	 * selector: 'a.b[0]'; // selects the payload at the path 'a.b[0]'
+	 * selector: 'a.b[*]; // selects the payloads at the paths 'a.b[0], 'a.b[1]', 'a.b[2]', etc.
 	 * ```
 	 */
 	selector?: OutputSelector<TInput, TOutput>;
@@ -160,7 +163,7 @@ export interface WriteStoreOptions<TInput, TOutput> {
 	 * replacer: 'x.y.z[]'; // pushes the reference to the array at the path 'x.y.z'
 	 * ```
 	 */
-	replacer?: OutputReplacer<TInput, TOutput>;
+	// replacer?: OutputReplacer<TInput, TOutput>;
 	size?: OutputSize<TInput, TOutput>;
 }
 
@@ -278,7 +281,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 		// setting write to true or not setting it at all will enable the store
 		const writeOptions = opts.write === true || !opts.write ? {} : opts.write;
 		const selector = writeOptions.selector ?? DEFAULT_OUTPUT_SELECTOR;
-		const replacer = writeOptions.replacer ?? selector;
+		// const replacer = writeOptions.replacer ?? selector;
 		const size = writeOptions.size ?? MAX_SIZE_STEPFUNCTIONS;
 
 		const { response: output, event: input } = request;
@@ -315,64 +318,75 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 		// select payload to be saved
 		// if no selector is specified, save the entire response
 		// if a selector is specified, use it to select the payload to be save
-		const payload =
-			typeof selector === "function"
-				? selector({ input, output })
-				: selectPayloadByPath({ output, path: selector });
+		// const payload =
+		// 	typeof selector === "function"
+		// 		? selector({ input, output })
+		// 		: selectPayloadByPath({ output, path: selector });
 
-		const storeOutput = {
-			input, // TODO Object.freeze(input)?
-			output, // TODO Object.freeze(output)?
-			payload,
-			byteSize: calculateByteSize(payload),
-		};
+		for (const path of generatePaths({ output, selector })) {
+			const payload = selectPayloadByPath({ output, path });
 
-		logger(`Selected payload`, {
-			// path,
-			payload,
-			byteSize: storeOutput.byteSize,
-		});
+			const storeOutput = {
+				input, // TODO Object.freeze(input)?
+				output, // TODO Object.freeze(output)?
+				payload,
+				byteSize: calculateByteSize(payload),
+			};
 
-		// find a store that can store the payload
-		// if there are multiple stores, store the response in the first store that accepts the response
-		// if no store accepts the response, leave the response untouched
-		const store = stores.find(
-			(store): store is WritableStore =>
-				"canWrite" in store && "write" in store && store.canWrite(storeOutput),
-		);
-		if (!store) {
-			if (passThrough) {
-				logger(`No store was found to save payload, passthrough output`);
-				return;
+			logger(`Selected payload`, {
+				path,
+				payload,
+				byteSize: storeOutput.byteSize,
+			});
+
+			// find a store that can store the payload
+			// if there are multiple stores, store the response in the first store that accepts the response
+			// if no store accepts the response, leave the response untouched
+			const store = stores.find(
+				(store): store is WritableStore =>
+					"canWrite" in store &&
+					"write" in store &&
+					store.canWrite(storeOutput),
+			);
+			if (!store) {
+				if (passThrough) {
+					logger(`No store was found to save payload, passthrough output`);
+					return;
+				}
+
+				logger(`No store was found to save payload, throwing error`);
+				throw new Error(`No store can save payload`);
 			}
 
-			logger(`No store was found to save payload, throwing error`);
-			throw new Error(`No store can save payload`);
+			logger(`Found store "${store.name}" to save payload`);
+
+			// store the payload in the store
+			const reference: MiddyStore<any> = {
+				[MIDDY_STORE]: await store.write(storeOutput),
+			};
+
+			logger(`Saved payload in store "${store.name}"`);
+
+			// replace the response with a reference to the stored response
+			request.response = replacePayloadByPath({
+				output,
+				reference,
+				path,
+			});
+			// request.response =
+			// 	typeof replacer === "function"
+			// 		? replacer({ input, output, reference })
+			// 		: replacePayloadByPath({
+			// 			output,
+			// 			reference,
+			// 			path: replacer,
+			// 		});
+
+			logger(`Replaced payload with reference`, {
+				reference,
+				output: request.response,
+			});
 		}
-
-		logger(`Found store "${store.name}" to save payload`);
-
-		// store the payload in the store
-		const reference: MiddyStore<any> = {
-			[MIDDY_STORE]: await store.write(storeOutput),
-		};
-
-		logger(`Saved payload in store "${store.name}"`);
-
-		// replace the response with a reference to the stored response
-		request.response =
-			typeof replacer === "function"
-				? replacer({ input, output, reference })
-				: replacePayloadByPath({
-						output,
-						reference,
-						path: replacer,
-				  });
-
-		logger(`Replaced payload with reference`, {
-			reference,
-			output: request.response,
-		});
 	};
 
 	return {

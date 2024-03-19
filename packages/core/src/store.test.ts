@@ -334,12 +334,19 @@ describe("storeOutput", () => {
 	});
 
 	test.each([
-		{ selector: undefined },
-		{ selector: "" },
-		// { selector: [] }
+		{
+			selector: undefined,
+			input: mockPayload,
+			result: mockPayloadWithReference,
+		},
+		{
+			selector: "",
+			input: mockPayload,
+			result: mockPayloadWithReference,
+		},
 	])(
-		"should store output at root with selector: $selector",
-		async ({ selector }) => {
+		"should select root payload with selector: $selector",
+		async ({ selector, input, result }) => {
 			vi.mocked(mockStore.canWrite).mockReturnValue(true);
 			vi.mocked(mockStore.write).mockResolvedValue(mockReference);
 
@@ -351,24 +358,33 @@ describe("storeOutput", () => {
 				},
 			});
 
-			const input = mockPayload;
-
 			const output = await handler(input, context);
 
-			expect(output).toEqual(mockPayloadWithReference);
+			expect(output).toEqual(result);
 			expect(mockStore.canWrite).toHaveBeenCalledWith(mockStoreOutput);
 			expect(mockStore.write).toHaveBeenCalledWith(mockStoreOutput);
 		},
 	);
 
 	test.each([
-		{ selector: "a" },
-		{ selector: "a.b" },
-		// { selector: ["a"] },
-		// { selector: ["a", "b"] },
+		{
+			selector: "a",
+			input: { a: mockPayload },
+			result: { a: mockPayloadWithReference },
+		},
+		{
+			selector: "a.b",
+			input: { a: { b: mockPayload } },
+			result: { a: { b: mockPayloadWithReference } },
+		},
+		{
+			selector: "a.b[0].c",
+			input: { a: { b: [{ c: mockPayload }] } },
+			result: { a: { b: [{ c: mockPayloadWithReference }] } },
+		},
 	])(
-		"should store output nested with selector: $selector",
-		async ({ selector }) => {
+		"should select single payload with selector: $selector",
+		async ({ selector, input, result }) => {
 			vi.mocked(mockStore.canWrite).mockReturnValue(true);
 			vi.mocked(mockStore.write).mockResolvedValue(mockReference);
 
@@ -380,11 +396,73 @@ describe("storeOutput", () => {
 				},
 			});
 
-			const input = set({}, selector, mockPayload);
+			const output = await handler(input, context);
+
+			expect(output).toEqual(result);
+			expect(mockStore.canWrite).toHaveBeenCalledWith(mockStoreOutput);
+			expect(mockStore.write).toHaveBeenCalledWith(mockStoreOutput);
+		},
+	);
+
+	test.each([
+		{
+			selector: "a[*]",
+			input: { a: [mockPayload, mockPayload, mockPayload] },
+			result: {
+				a: [
+					mockPayloadWithReference,
+					mockPayloadWithReference,
+					mockPayloadWithReference,
+				],
+			},
+		},
+		{
+			selector: "a.b[*]",
+			input: { a: { b: [mockPayload, mockPayload, mockPayload] } },
+			result: {
+				a: {
+					b: [
+						mockPayloadWithReference,
+						mockPayloadWithReference,
+						mockPayloadWithReference,
+					],
+				},
+			},
+		},
+		{
+			selector: "a.b[0].c[*]",
+			input: { a: { b: [{ c: [mockPayload, mockPayload, mockPayload] }] } },
+			result: {
+				a: {
+					b: [
+						{
+							c: [
+								mockPayloadWithReference,
+								mockPayloadWithReference,
+								mockPayloadWithReference,
+							],
+						},
+					],
+				},
+			},
+		},
+	])(
+		"should select multiple payloads with selector: $selector",
+		async ({ selector, input, result }) => {
+			vi.mocked(mockStore.canWrite).mockReturnValue(true);
+			vi.mocked(mockStore.write).mockResolvedValue(mockReference);
+
+			const handler = useWriteStore({
+				stores: [mockStore],
+				write: {
+					size: 0,
+					selector,
+				},
+			});
 
 			const output = await handler(input, context);
 
-			expect(output).toEqual(set({}, selector, mockPayloadWithReference));
+			expect(output).toEqual(result);
 			expect(mockStore.canWrite).toHaveBeenCalledWith(mockStoreOutput);
 			expect(mockStore.write).toHaveBeenCalledWith(mockStoreOutput);
 		},
