@@ -51,6 +51,7 @@ const mockStoreOutput: WriteOutput<typeof mockPayload, typeof mockPayload> = {
 	output: mockPayload,
 	payload: mockPayload,
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
+	index: 0,
 };
 
 const mockStore: Store = {

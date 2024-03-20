@@ -38,13 +38,7 @@ export interface S3ObjectReference {
 	region?: string;
 }
 
-// export type S3Object = {
-// 	bucket: string;
-// 	key: string;
-// 	region?: string;
-// };
-
-type KeyMaker<TInput = unknown, TOutput = unknown> =
+export type KeyMaker<TInput = unknown, TOutput = unknown> =
 	| string
 	| ((output: WriteOutput<TInput, TOutput>) => string);
 

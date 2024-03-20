@@ -8,6 +8,7 @@ import { ReadInput, WriteOutput } from "middy-store";
 import { ReadableStream } from "stream/web";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
+	KeyMaker,
 	S3ObjectReference,
 	S3Reference,
 	S3ReferenceFormat,
@@ -47,6 +48,7 @@ const mockStoreOutput: WriteOutput<typeof mockPayload, typeof mockPayload> = {
 	output: mockPayload,
 	payload: mockPayload,
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
+	index: 0,
 };
 
 beforeAll(() => {
@@ -371,30 +373,71 @@ describe("S3Store.store", () => {
 		},
 	);
 
-	test(`should format reference as ARN`, async () => {
-		const s3Store = new S3Store({ bucket, key, format: "arn" });
-		const input = mockStoreOutput;
-
-		const output = await s3Store.write(input);
-
-		expect(output).toEqual(mockArnReference);
-	});
-
-	test(`should format reference as URI`, async () => {
-		const s3Store = new S3Store({ bucket, key, format: "url" });
-		const input = mockStoreOutput;
-
-		const output = await s3Store.write(input);
-
-		expect(output).toEqual(mockUrlReference);
-	});
-
-	test(`should format reference as object`, async () => {
+	test.each<{
+		key: KeyMaker<typeof mockPayload, typeof mockPayload>;
+		result: string;
+	}>([
+		{ key: "foo", result: "foo" },
+		{ key: () => "foo", result: "foo" },
+		{
+			key: ({ output }) => `output-${output.foo}`,
+			result: `output-${mockStoreOutput.output.foo}`,
+		},
+		{
+			key: ({ input }) => `input-${input.foo}`,
+			result: `input-${mockStoreOutput.input.foo}`,
+		},
+		{
+			key: ({ byteSize }) => `byteSize-${byteSize}`,
+			result: `byteSize-${mockStoreOutput.byteSize}`,
+		},
+		{
+			key: ({ index }) => `index-${index}`,
+			result: `index-${mockStoreOutput.index}`,
+		},
+	])("should generate object key: $result", async ({ key, result }) => {
+		const spy = mockClient();
 		const s3Store = new S3Store({ bucket, key, format: "object" });
 		const input = mockStoreOutput;
 
 		const output = await s3Store.write(input);
 
+		expect(spy).toHaveBeenCalled();
+
+		const s3ObjectReference = output as S3ObjectReference;
+		expect(s3ObjectReference.key).toEqual(result);
+	});
+
+	test(`should format reference as ARN`, async () => {
+		const spy = mockClient();
+		const s3Store = new S3Store({ bucket, key, format: "arn" });
+		const input = mockStoreOutput;
+
+		const output = await s3Store.write(input);
+
+		expect(spy).toHaveBeenCalled();
+		expect(output).toEqual(mockArnReference);
+	});
+
+	test(`should format reference as URI`, async () => {
+		const spy = mockClient();
+		const s3Store = new S3Store({ bucket, key, format: "url" });
+		const input = mockStoreOutput;
+
+		const output = await s3Store.write(input);
+
+		expect(spy).toHaveBeenCalled();
+		expect(output).toEqual(mockUrlReference);
+	});
+
+	test(`should format reference as object`, async () => {
+		const spy = mockClient();
+		const s3Store = new S3Store({ bucket, key, format: "object" });
+		const input = mockStoreOutput;
+
+		const output = await s3Store.write(input);
+
+		expect(spy).toHaveBeenCalled();
 		expect(output).toEqual(mockObjectReference);
 	});
 });

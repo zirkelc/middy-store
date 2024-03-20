@@ -70,26 +70,44 @@ export function calculateByteSize(payload: any) {
 	throw new Error(`Unsupported payload type: ${typeof payload}`);
 }
 
-type SelectPayloadArgs = {
-	output: Record<string, any>;
-	path: Path;
-};
-export function selectPayloadByPath({ output, path }: SelectPayloadArgs): any {
+export function formatPath(path: Path, key: string | number): string {
+	let newPath = path.trim();
+
+	if (typeof key === "number") {
+		newPath += `[${key}]`;
+	} else {
+		newPath += newPath.length === 0 ? `${key}` : `.${key}`;
+	}
+
+	return newPath;
+}
+
+export function selectByPath(source: Record<string, any>, path: Path): any {
 	// if (typeof selector === "function") {
 	// 	return selector({ output });
 	// }
 
 	const pathArray = toPath(path);
-	const payload = pathArray.length === 0 ? output : get(output, pathArray);
+	const value = pathArray.length === 0 ? source : get(source, pathArray);
 
-	return payload;
+	return value;
+}
+
+export function replaceByPath(
+	source: Record<string, any>,
+	value: Record<string, any>,
+	path: Path,
+): any {
+	const pathArray = toPath(path);
+
+	return pathArray.length === 0 ? value : set(source, pathArray, value);
 }
 
 type GeneratePathsArgs = {
 	output: Record<string, any>;
 	selector: Path;
 };
-export function* generatePaths({
+export function* generatePayloadPaths({
 	output,
 	selector,
 }: GeneratePathsArgs): Generator<Path> {
@@ -101,7 +119,7 @@ export function* generatePaths({
 
 	if (isMultiPayload && Array.isArray(payload)) {
 		for (let i = 0; i < payload.length; i++) {
-			const itemPath = `${path}[${i}]`;
+			const itemPath = formatPath(path, i);
 			yield itemPath;
 		}
 	} else {
@@ -169,37 +187,67 @@ export const getReference = <TReference = any>(
 	return hasReference(obj) ? obj[MIDDY_STORE] : undefined;
 };
 
-export function findAllReferences(
-	result: Record<string, any>,
-	path: Array<string> = [],
-): FindReferenceResult[] {
-	let references: FindReferenceResult[] = [];
-
+type GenerateReferencePathsArgs = {
+	input: Record<string, any>;
+	path: Path;
+};
+export function* generateReferencePaths({
+	input,
+	path,
+}: GenerateReferencePathsArgs): Generator<Path> {
 	// Check if the result itself is null or not an object
-	if (result === null || typeof result !== "object") return references;
+	if (input === null || typeof input !== "object") return;
 
 	// Check for the reference in the current level of the object
-	const reference = getReference(result);
-	if (reference) references.push({ reference, path });
-	// if (result[MIDDY_STORE]) {
-	// 	references.push({ reference: result[MIDDY_STORE], path });
-	// }
-
-	// Iterate through the object recursively to find all references
-	for (const key in result) {
-		if (Object.hasOwn(result, key)) {
-			if (result[key] === null || typeof result[key] !== "object") continue;
-
-			const nextPath = path.concat(key); // Prepare the next path
-
-			// Recursively search for references in the next level of the object
-			const childReferences = findAllReferences(result[key], nextPath);
-			references = references.concat(childReferences);
-		}
+	if (hasReference(input)) {
+		yield path;
 	}
 
-	return references;
+	// Iterate through the object recursively to find all references
+	for (const key in input) {
+		if (Object.hasOwn(input, key)) {
+			if (input[key] === null || typeof input[key] !== "object") continue;
+
+			// const nextPath = path.concat(key); // Prepare the next path
+			const nextPath = formatPath(path, key);
+
+			// Recursively search for references in the next level of the object
+			yield* generateReferencePaths({ input: input[key], path: nextPath });
+		}
+	}
 }
+
+// export function* generateReferencePaths(
+// 	result: Record<string, any>,
+// 	path: Array<string> = [],
+// ): Generator<Path> {
+// 	// let references: FindReferenceResult[] = [];
+
+// 	// Check if the result itself is null or not an object
+// 	if (result === null || typeof result !== "object") return references;
+
+// 	// Check for the reference in the current level of the object
+// 	const reference = getReference(result);
+// 	if (reference) yield path;
+// 	// if (result[MIDDY_STORE]) {
+// 	// 	references.push({ reference: result[MIDDY_STORE], path });
+// 	// }
+
+// 	// Iterate through the object recursively to find all references
+// 	for (const key in result) {
+// 		if (Object.hasOwn(result, key)) {
+// 			if (result[key] === null || typeof result[key] !== "object") continue;
+
+// 			const nextPath = path.concat(key); // Prepare the next path
+
+// 			// Recursively search for references in the next level of the object
+// 			const childReferences = findAllReferences(result[key], nextPath);
+// 			references = references.concat(childReferences);
+// 		}
+// 	}
+
+// 	return references;
+// }
 
 export const MAX_SIZE_STEPFUNCTIONS = 256 * 1024; // 256KB
 export const MAX_SIZE_LAMBDA_SYNC = 6 * 1024 * 1024; // 6MB

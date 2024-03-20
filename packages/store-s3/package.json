@@ -1,6 +1,6 @@
 {
   "name": "middy-store-s3",
-  "version": "0.0.0-alpha.23",
+  "version": "0.0.0-alpha.24",
   "description": "",
   "type": "module",
   "main": "./src/index.ts",
