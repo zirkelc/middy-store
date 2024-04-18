@@ -11,5 +11,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "dependencies": {}
+  "dependencies": {
+    "@middy/core": "^5.2.3",
+    "middy-store": "workspace:*",
+    "middy-store-s3": "workspace:*"
+  }
 }

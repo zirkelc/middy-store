@@ -119,6 +119,10 @@ export function* generatePayloadPaths({
 
 	if (isMultiPayload && Array.isArray(payload)) {
 		for (let i = 0; i < payload.length; i++) {
+			// if the item is a reference, we skip it
+			// this could happen if the handler is called multiple times and adds payload to the same path
+			if (hasReference(payload[i])) continue;
+
 			const itemPath = formatPath(path, i);
 			yield itemPath;
 		}

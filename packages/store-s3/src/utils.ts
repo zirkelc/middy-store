@@ -69,10 +69,20 @@ export const formatS3Reference = (
 	throw new Error(`Invalid reference format: ${format}`);
 };
 
+// export function coerceFunction<T, Args extends any[]>(
+// 	input: T | ((...args: Args) => T),
+// ): (...args: Args) => T {
+// 	return typeof input === "function"
+// 		? (input as (...args: Args) => T)
+// 		: (...args: Args) => input;
+// }
+
 export function coerceFunction<T, Args extends any[]>(
-	input: T | ((...args: Args) => T),
-): (...args: Args) => T {
+	input: T | ((...args: Args) => T) | { env: string },
+): (...args: Args) => T | string {
 	return typeof input === "function"
 		? (input as (...args: Args) => T)
-		: (...args: Args) => input;
+		: typeof input === "object" && input !== null && "env" in input
+		  ? (...args: Args) => process.env[input.env] as T | string
+		  : (...args: Args) => input as T;
 }

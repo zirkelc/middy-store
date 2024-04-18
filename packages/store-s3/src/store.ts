@@ -38,6 +38,10 @@ export interface S3ObjectReference {
 	region?: string;
 }
 
+export type Bucket = string | (() => string) | { env: string };
+
+export type Region = string | (() => string) | { env: string };
+
 export type KeyMaker<TInput = unknown, TOutput = unknown> =
 	| string
 	| ((output: WriteOutput<TInput, TOutput>) => string);
@@ -45,8 +49,8 @@ export type KeyMaker<TInput = unknown, TOutput = unknown> =
 export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
 	extends StoreOptions {
 	config?: S3ClientConfig;
-	// region?: string;
-	bucket: string;
+	region?: Region;
+	bucket: Bucket;
 	key?: KeyMaker<TInput, TOutput>;
 	format?: "arn" | "object" | "url" | S3ReferenceFormat; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
 	logger?: (...args: any[]) => void;
@@ -58,9 +62,9 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	readonly name = "s3" as const;
 
 	#maxSize: number;
-	#client: S3Client;
-	// #region: string | Provider<string> | undefined;
-	#bucket: string;
+	// #client: S3Client;
+	#region: Region;
+	#bucket: Bucket;
 	#key: KeyMaker<TInput, TOutput>;
 	#format: S3ReferenceFormat;
 	#logger: (...args: any[]) => void;
@@ -72,12 +76,8 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#bucket = opts.bucket;
 		this.#key = opts.key ?? uuidKey;
-		// this.#region = opts.region ?? opts.config?.region;
+		this.#region = opts.region ?? "";
 
-		this.#client = new S3Client({
-			// region: opts.region,
-			...opts.config,
-		});
 		this.#logger = opts.logger ?? (() => {});
 
 		this.#format =
@@ -95,9 +95,6 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	canRead(input: ReadInput<TInput, unknown>): boolean {
 		this.#logger("Checking if store can load input");
 
-		// setting load options to false will disable loading completely
-		// if (this.#loadOptions === false) return false;
-
 		// input must be an object
 		if (input === null || input === undefined || typeof input !== "object")
 			return false;
@@ -106,34 +103,23 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		const { reference } = input;
 		if (reference === null || reference === undefined) return false;
 
-		// // resolve bucket and key from options
-		// // options set to true is shortcut for match-all regex pattern
-		// const bucketFn =
-		// 	this.#loadOptions === true
-		// 		? MATCH_ALL
-		// 		: coerceFunction(this.#loadOptions.bucket);
-		// const keyFn =
-		// 	this.#loadOptions === true
-		// 		? MATCH_ALL
-		// 		: coerceFunction(this.#loadOptions.key);
-
-		// const bucket = bucketFn(input as LoadInput<S3Reference>);
-		// const key = keyFn(input as LoadInput<S3Reference>);
+		const bucketFn = coerceFunction(this.#bucket);
+		const bucket = bucketFn();
 
 		if (isS3Arn(reference)) {
-			const { bucket } = parseS3Arn(reference);
-			return bucket === this.#bucket;
+			const { bucket: otherBucket } = parseS3Arn(reference);
+			return otherBucket === bucket;
 		}
 
 		if (isS3Url(reference)) {
-			const { bucket } = parseS3Url(reference);
+			const { bucket: otherBucket } = parseS3Url(reference);
 			// TODO check region matches config.region?
-			return bucket === this.#bucket;
+			return otherBucket === bucket;
 		}
 
 		if (isS3Object(reference)) {
-			const { bucket } = reference;
-			return bucket === this.#bucket;
+			const { bucket: otherBucket } = reference;
+			return otherBucket === bucket;
 		}
 
 		return false;
@@ -142,8 +128,15 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	async read(input: ReadInput<TInput, S3Reference>): Promise<unknown> {
 		this.#logger("Loading payload");
 
+		const regionFn = coerceFunction(this.#region);
+		const region = regionFn();
+
+		const client = new S3Client({
+			region,
+		});
+
 		const { bucket, key } = parseS3Reference(input.reference);
-		const result = await this.#client.send(
+		const result = await client.send(
 			new GetObjectCommand({ Bucket: bucket, Key: key }),
 		);
 
@@ -162,12 +155,8 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		if (output.byteSize > this.#maxSize) return false;
 		if (output.payload === null || output.payload === undefined) return false;
 
-		// resolve bucket and key from options
-		// if buccket and key are not defined, default to WILDCARD regex pattern to match anything
-		// const bucketFn = coerceFunction(this.#storeOptions.bucket); // typeof this.#storeOptions.bucket === 'function' ? this.#storeOptions.bucket(output) : this.#storeOptions.bucket;
-		// const keyFn = coerceFunction(this.#storeOptions.key); //=== 'function' ? this.#storeOptions.key(output) : this.#storeOptions.key;
-
-		const bucket = this.#bucket;
+		const bucketFn = coerceFunction(this.#bucket);
+		const bucket = bucketFn();
 		if (!isValidBucket(bucket)) {
 			this.#logger("Invalid bucket", { bucket });
 			throw new Error(
@@ -192,19 +181,14 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	): Promise<S3Reference> {
 		this.#logger("Saving payload");
 
-		// if (this.#storeOptions === false) {
-		// 	throw new Error("Store options are disabled");
-		// }
+		const regionFn = coerceFunction(this.#region);
+		const region = regionFn();
 
-		// const bucket = this.#bucket(output);
-		// const key = this.#key(output);
-		// const bucket = typeof this.#storeOptions.bucket === 'function' ? this.#storeOptions.bucket(output) : this.#storeOptions.bucket;
-		// const key = typeof this.#storeOptions.key === 'function' ? this.#storeOptions.key(output) : this.#storeOptions.key;
-		// const bucketFn = coerceFunction(this.#storeOptions.bucket); // typeof this.#storeOptions.bucket === 'function' ? this.#storeOptions.bucket(output) : this.#storeOptions.bucket;
-		// const keyFn = coerceFunction(this.#storeOptions.key);
+		const bucketFn = coerceFunction(this.#bucket);
+		const bucket = bucketFn();
 
-		const regionFn = coerceFunction(this.#client.config.region);
-		const region = await regionFn();
+		const keyFn = coerceFunction(this.#key);
+		const key = keyFn(output);
 
 		if (
 			this.#format.type === "url" &&
@@ -216,14 +200,15 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			);
 		}
 
-		const bucket = this.#bucket;
-		const keyFn = coerceFunction(this.#key);
-		const key = keyFn(output);
 		const { payload } = output;
 		this.#logger("Resolved bucket and key", { bucket, key, region });
 
+		const client = new S3Client({
+			region,
+		});
+
 		try {
-			await this.#client.send(
+			await client.send(
 				new PutObjectCommand({
 					...this.serizalizePayload(payload),
 					Bucket: bucket,

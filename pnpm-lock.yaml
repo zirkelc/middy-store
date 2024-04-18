@@ -74,7 +74,17 @@ importers:
         specifier: ^8.10.133
         version: 8.10.134
 
-  examples/s3: {}
+  examples/s3:
+    dependencies:
+      '@middy/core':
+        specifier: ^5.2.3
+        version: 5.2.4
+      middy-store:
+        specifier: workspace:*
+        version: link:../../packages/core
+      middy-store-s3:
+        specifier: workspace:*
+        version: link:../../packages/store-s3
 
   examples/stepfunctions:
     dependencies:
@@ -2590,7 +2600,7 @@ packages:
     resolution: {integrity: sha512-xq+q3SRMOxGivLhBNaUdC64hDTQwejJ+H0T/NB1XMtTVEwNTrfFF3gAxiyW0Bu/xWEGhjVKgUcMhCrUy2+uCWg==}
     dependencies:
       base64-js: 1.5.1
-      ieee754: 1.1.13
+      ieee754: 1.2.1
       isarray: 1.0.0
     dev: true
 
