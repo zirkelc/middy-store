@@ -42,7 +42,8 @@
     "build": "tsc --noEmit",
     "bundle": "tsup ./src/index.ts --format cjs,esm --dts --clean",
     "prepublishOnly": "pnpm run build && pnpm run bundle",
-    "publish:alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --no-git-checks"
+    "release:patch": "pnpm version patch && pnpm publish --no-git-checks",
+    "release:alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --no-git-checks"
   },
   "keywords": [],
   "author": "",

@@ -117,8 +117,7 @@ export interface MiddyStoreOptions<TInput = unknown, TOutput = unknown> {
 }
 
 export interface ReadStoreOptions<TInput> {
-	selector?: InputSelector<TInput>; // TODO
-	// replacer?: InputReplacer<TInput>; // TODO
+	// selector?: InputSelector<TInput>; // TODO
 }
 
 export interface WriteStoreOptions<TInput, TOutput> {
@@ -145,31 +144,11 @@ export interface WriteStoreOptions<TInput, TOutput> {
 	 * ```
 	 */
 	selector?: OutputSelector<TInput, TOutput>;
-	/**
-	 * Replaces the payload with a reference to the stored payload.
-	 * If no replacer is specified, the reference will be placed at the path specified by the selector.
-	 *
-	 * If a replacer is specified, the reference will be placed at the specified path instead of the path specified by the selector.
-	 *
-	 * The replacer can be a string path or an array of string paths.
-	 * It uses Lodash's set function {@link https://lodash.com/docs/4.17.15#set | _.set() } to place the reference in the output.
-	 *
-	 * If the replace path ends with array brackets, the reference will be pushed to the array instead of being set as a property.
-	 * This allows to aggregate multiple references in an array if the Lambda function is called multiple times.
-	 *
-	 * Examples:
-	 * ```
-	 * replacer: 'x.y.z'; // places the reference at the path 'x.y.z'
-	 * replacer: ['x', 'y', 'z']; // places the reference at the path 'x.y.z'
-	 * replacer: 'x.y.z[]'; // pushes the reference to the array at the path 'x.y.z'
-	 * ```
-	 */
-	// replacer?: OutputReplacer<TInput, TOutput>;
+
 	size?: OutputSize<TInput, TOutput>;
 }
 
 const DEFAULT_OUTPUT_SELECTOR = "";
-// const DEFAULT_REPLACER: Replacer = [];
 const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
 
 /**
@@ -205,7 +184,6 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 
 		// setting read to true or not setting it at all will enable the store
 		const readOptions = opts.read === true || !opts.read ? {} : opts.read;
-		const selector = readOptions.selector ?? DEFAULT_OUTPUT_SELECTOR;
 
 		const { event: input, context } = request;
 

@@ -63,7 +63,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 	#maxSize: number;
 	// #client: S3Client;
-	#region: Region;
+	#region: Region | undefined;
 	#bucket: Bucket;
 	#key: KeyMaker<TInput, TOutput>;
 	#format: S3ReferenceFormat;
@@ -76,7 +76,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#bucket = opts.bucket;
 		this.#key = opts.key ?? uuidKey;
-		this.#region = opts.region ?? "";
+		this.#region = opts.region;
 
 		this.#logger = opts.logger ?? (() => {});
 

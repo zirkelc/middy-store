@@ -19,14 +19,20 @@ const bucket = "bucket";
 const key = "key";
 const region = "eu-west-1";
 
-const mockArnReference = "arn:aws:s3:::bucket/key";
+const mockArnReference = `arn:aws:s3:::${bucket}/${key}`;
 
-const mockUrlReference = "s3://bucket/key";
+const mockUrlReference = `s3://${bucket}/${key}`;
+
+const mockUrlReferenceWithRegion = `s3://https://${bucket}.s3.${region}.amazonaws.com/${key}`;
 
 const mockObjectReference: S3ObjectReference = {
 	store: "s3",
 	bucket,
 	key,
+};
+
+const mockObjectReferenceWithRegion: S3ObjectReference = {
+	...mockObjectReference,
 	region,
 };
 
@@ -408,36 +414,30 @@ describe("S3Store.store", () => {
 		expect(s3ObjectReference.key).toEqual(result);
 	});
 
-	test(`should format reference as ARN`, async () => {
-		const spy = mockClient();
-		const s3Store = new S3Store({ bucket, key, format: "arn" });
-		const input = mockStoreOutput;
+	describe("reference", () => {
+		test.each<{
+			format: S3ReferenceFormat["type"];
+			region?: string;
+			reference: S3Reference;
+		}>([
+			{ format: "arn", reference: mockArnReference },
+			{ format: "arn", region, reference: mockArnReference },
+			{ format: "url", reference: mockUrlReference },
+			{ format: "url", region, reference: mockUrlReference },
+			{ format: "object", reference: mockObjectReference },
+			{ format: "object", region, reference: mockObjectReferenceWithRegion },
+		])(
+			`should return reference as $format`,
+			async ({ format, region, reference }) => {
+				const spy = mockClient();
+				const s3Store = new S3Store({ bucket, key, region, format });
+				const input = mockStoreOutput;
 
-		const output = await s3Store.write(input);
+				const output = await s3Store.write(input);
 
-		expect(spy).toHaveBeenCalled();
-		expect(output).toEqual(mockArnReference);
-	});
-
-	test(`should format reference as URI`, async () => {
-		const spy = mockClient();
-		const s3Store = new S3Store({ bucket, key, format: "url" });
-		const input = mockStoreOutput;
-
-		const output = await s3Store.write(input);
-
-		expect(spy).toHaveBeenCalled();
-		expect(output).toEqual(mockUrlReference);
-	});
-
-	test(`should format reference as object`, async () => {
-		const spy = mockClient();
-		const s3Store = new S3Store({ bucket, key, format: "object" });
-		const input = mockStoreOutput;
-
-		const output = await s3Store.write(input);
-
-		expect(spy).toHaveBeenCalled();
-		expect(output).toEqual(mockObjectReference);
+				expect(spy).toHaveBeenCalled();
+				expect(output).toEqual(reference);
+			},
+		);
 	});
 });
