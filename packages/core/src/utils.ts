@@ -6,12 +6,23 @@ import type {
 	Path,
 	ReadInput,
 	ReadableStore,
+	Resolveable,
 	Size,
 	Store,
 	WritableStore,
 	WriteOutput,
 } from "./store.js";
 import { MIDDY_STORE } from "./store.js";
+
+export function resolve<TResolved, TArgs extends any[] = []>(
+	input: Resolveable<TResolved, TArgs>,
+): (...args: TArgs) => TResolved | string {
+	return typeof input === "function"
+		? (input as (...args: TArgs) => TResolved)
+		: typeof input === "object" && input !== null && "env" in input
+		  ? (...args: TArgs) => process.env[input.env] as TResolved | string
+		  : (...args: TArgs) => input as TResolved;
+}
 
 export function tryParseJSON(json: string | undefined): object | false {
 	// handle null, undefined, and empty string

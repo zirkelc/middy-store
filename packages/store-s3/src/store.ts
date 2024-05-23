@@ -7,9 +7,14 @@ import {
 	S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import { S3UrlFormat, isS3Url, parseS3Url } from "amazon-s3-url";
-import type { ReadInput, Store, StoreOptions, WriteOutput } from "middy-store";
+import type {
+	ReadInput,
+	Resolveable,
+	Store,
+	StoreOptions,
+	WriteOutput,
+} from "middy-store";
 import {
-	coerceFunction,
 	formatS3Reference,
 	isS3Arn,
 	isS3Object,
@@ -38,13 +43,18 @@ export interface S3ObjectReference {
 	region?: string;
 }
 
-export type Bucket = string | (() => string) | { env: string };
+export type Bucket = Resolveable<string>;
 
-export type Region = string | (() => string) | { env: string };
+export type Region = Resolveable<string>;
 
-export type KeyMaker<TInput = unknown, TOutput = unknown> =
-	| string
-	| ((output: WriteOutput<TInput, TOutput>) => string);
+// export type KeyMaker<TInput = unknown, TOutput = unknown> =
+// 	| string
+// 	| ((output: WriteOutput<TInput, TOutput>) => string);
+
+export type KeyMaker<TInput = unknown, TOutput = unknown> = Resolveable<
+	string,
+	[WriteOutput<TInput, TOutput>]
+>;
 
 export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
 	extends StoreOptions {
@@ -103,7 +113,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		const { reference } = input;
 		if (reference === null || reference === undefined) return false;
 
-		const bucketFn = coerceFunction(this.#bucket);
+		const bucketFn = resolve(this.#bucket);
 		const bucket = bucketFn();
 
 		if (isS3Arn(reference)) {
@@ -128,7 +138,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	async read(input: ReadInput<TInput, S3Reference>): Promise<unknown> {
 		this.#logger("Loading payload");
 
-		const regionFn = coerceFunction(this.#region);
+		const regionFn = resolve(this.#region);
 		const region = regionFn();
 
 		const client = new S3Client({
@@ -155,7 +165,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		if (output.byteSize > this.#maxSize) return false;
 		if (output.payload === null || output.payload === undefined) return false;
 
-		const bucketFn = coerceFunction(this.#bucket);
+		const bucketFn = resolve(this.#bucket);
 		const bucket = bucketFn();
 		if (!isValidBucket(bucket)) {
 			this.#logger("Invalid bucket", { bucket });
@@ -164,7 +174,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			);
 		}
 
-		const keyFn = coerceFunction(this.#key);
+		const keyFn = resolve(this.#key);
 		const key = keyFn(output);
 		if (!isValidKey(key)) {
 			this.#logger("Invalid key", { key });
@@ -181,13 +191,13 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	): Promise<S3Reference> {
 		this.#logger("Saving payload");
 
-		const regionFn = coerceFunction(this.#region);
+		const regionFn = resolve(this.#region);
 		const region = regionFn();
 
-		const bucketFn = coerceFunction(this.#bucket);
+		const bucketFn = resolve(this.#bucket);
 		const bucket = bucketFn();
 
-		const keyFn = coerceFunction(this.#key);
+		const keyFn = resolve(this.#key);
 		const key = keyFn(output);
 
 		if (

@@ -77,12 +77,12 @@ export const formatS3Reference = (
 // 		: (...args: Args) => input;
 // }
 
-export function coerceFunction<T, Args extends any[]>(
-	input: T | ((...args: Args) => T) | { env: string },
-): (...args: Args) => T | string {
-	return typeof input === "function"
-		? (input as (...args: Args) => T)
-		: typeof input === "object" && input !== null && "env" in input
-		  ? (...args: Args) => process.env[input.env] as T | string
-		  : (...args: Args) => input as T;
-}
+// export function coerceFunction<T, Args extends any[]>(
+// 	input: T | ((...args: Args) => T) | { env: string },
+// ): (...args: Args) => T | string {
+// 	return typeof input === "function"
+// 		? (input as (...args: Args) => T)
+// 		: typeof input === "object" && input !== null && "env" in input
+// 		  ? (...args: Args) => process.env[input.env] as T | string
+// 		  : (...args: Args) => input as T;
+// }

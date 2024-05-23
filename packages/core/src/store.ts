@@ -1,4 +1,4 @@
-import middy from "@middy/core";
+import type { MiddlewareObj } from "@middy/core";
 import {
 	MAX_SIZE_STEPFUNCTIONS,
 	calculateByteSize,
@@ -17,6 +17,11 @@ export const MIDDY_STORE = "@middy-store";
 export type MiddyStore<TReference> = {
 	[MIDDY_STORE]: TReference;
 };
+
+export type Resolveable<TResolved, TArgs extends any[] = []> =
+	| TResolved
+	| ((...args: TArgs) => TResolved)
+	| { env: string };
 
 export type Payload<TPayload = any> = TPayload;
 export type Reference<TReference = any> = TReference;
@@ -171,211 +176,210 @@ const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
 
 export const middyStore = <TInput = unknown, TOutput = unknown>(
 	opts: MiddyStoreOptions<TInput, TOutput>,
-): middy.MiddlewareObj<TInput, TOutput> => {
+): MiddlewareObj<TInput, TOutput> => {
 	const { stores, passThrough } = opts;
 	const logger = opts.logger ?? DEFAULT_DUMMY_LOGGER;
 
-	const onReadInput: middy.MiddlewareFn = async (request) => {
-		// setting read to false will skip the store
-		if (opts.read === false) {
-			logger(`Read is disabled, skipping store`);
-			return;
-		}
-
-		// setting read to true or not setting it at all will enable the store
-		const readOptions = opts.read === true || !opts.read ? {} : opts.read;
-
-		const { event: input, context } = request;
-
-		if (
-			input === null ||
-			input === undefined ||
-			typeof input !== "object" ||
-			Object.keys(input).length === 0
-		) {
-			logger(`Input must be an object, skipping store`);
-			return;
-		}
-
-		// check if the event contains a reference to a stored payload
-		// if it does, load the payload from the store
-		// if it doesn't, leave the event untouched
-		// const references = findAllReferences(input);
-		// if (!references || references.length === 0) {
-		// 	logger(`No reference found in input`);
-		// 	return;
-		// }
-
-		// logger(`Found ${references.length} references in input`, { references });
-		let index = 0;
-		for (const path of generateReferencePaths({ input, path: "" })) {
-			logger(`Process reference at ${path}`);
-
-			const reference = selectByPath(input, formatPath(path, MIDDY_STORE));
-			const readInput = {
-				input, // TODO Object.freeze(input)?
-				reference,
-			};
-
-			// find a store that can load the reference
-			const store = stores.find(
-				(store): store is ReadableStore =>
-					"canRead" in store && "read" in store && store.canRead(readInput),
-			);
-			if (!store) {
-				if (passThrough) {
-					logger(`No store was found to load reference, passthrough input`);
-					return;
-				}
-
-				logger(`No store was found to load reference, throwing error`);
-				throw new Error(
-					`No store can load reference: ${JSON.stringify(reference)}`,
-				);
-			}
-
-			logger(`Found store "${store.name}" to load reference`);
-
-			// load the payload from the store
-			const payload = await store.read(readInput);
-
-			logger(`Loaded payload from store "${store.name}"`, {
-				input,
-				path,
-				payload,
-			});
-
-			// replace the reference with the payload
-			request.event = replaceByPath(input, payload, path);
-
-			logger(`Replaced reference with payload`, { path, payload });
-
-			index++;
-		}
-	};
-
-	const onWriteOutput: middy.MiddlewareFn = async (request) => {
-		// setting write to false will skip the store
-		if (opts.write === false) {
-			logger(`Write is disabled, skipping store`);
-			return;
-		}
-
-		// setting write to true or not setting it at all will enable the store
-		const writeOptions = opts.write === true || !opts.write ? {} : opts.write;
-		const selector = writeOptions.selector ?? DEFAULT_OUTPUT_SELECTOR;
-		// const replacer = writeOptions.replacer ?? selector;
-		const size = writeOptions.size ?? MAX_SIZE_STEPFUNCTIONS;
-
-		const { response: output, event: input } = request;
-
-		if (
-			output === null ||
-			output === undefined ||
-			typeof output !== "object" ||
-			Object.keys(output).length === 0
-		) {
-			logger(`Output must be an object, skipping store`);
-			return;
-		}
-
-		// check if response size exceeds the maximum allowed size
-		// if it does, store the response in the store
-		// if it doesn't, leave the response untouched
-		// if maxSize is 0, always store the response in the store
-		const maxSize = sizeToNumber(
-			typeof size === "function" ? size({ input, output }) : size,
-		);
-		const byteSize = calculateByteSize(output);
-		if (maxSize > 0 && byteSize < maxSize) {
-			logger(
-				`Output size of ${byteSize} bytes is less than max size of ${maxSize}, skipping store`,
-			);
-			return;
-		}
-
-		logger(
-			`Output size of ${byteSize} bytes exceeds max size of ${maxSize} bytes, save in store`,
-		);
-
-		// select payload to be saved
-		// if no selector is specified, save the entire response
-		// if a selector is specified, use it to select the payload to be save
-		// const payload =
-		// 	typeof selector === "function"
-		// 		? selector({ input, output })
-		// 		: selectPayloadByPath({ output, path: selector });
-
-		let index = 0;
-		for (const path of generatePayloadPaths({ output, selector })) {
-			logger(`Process payload at ${path}`);
-
-			const payload = selectByPath(output, path);
-
-			const storeOutput: WriteOutput<TInput, TOutput> = {
-				input, // TODO Object.freeze(input)?
-				output, // TODO Object.freeze(output)?
-				payload,
-				byteSize: calculateByteSize(payload),
-				index,
-			};
-
-			logger(`Selected payload`, {
-				path,
-				payload,
-				byteSize: storeOutput.byteSize,
-			});
-
-			// find a store that can store the payload
-			// if there are multiple stores, store the response in the first store that accepts the response
-			// if no store accepts the response, leave the response untouched
-			const store = stores.find(
-				(store): store is WritableStore =>
-					"canWrite" in store &&
-					"write" in store &&
-					store.canWrite(storeOutput),
-			);
-			if (!store) {
-				if (passThrough) {
-					logger(`No store was found to save payload, passthrough output`);
-					return;
-				}
-
-				logger(`No store was found to save payload, throwing error`);
-				throw new Error(`No store can save payload`);
-			}
-
-			logger(`Found store "${store.name}" to save payload`);
-
-			// store the payload in the store
-			const reference: MiddyStore<any> = {
-				[MIDDY_STORE]: await store.write(storeOutput),
-			};
-
-			logger(`Saved payload in store "${store.name}"`);
-
-			// replace the response with a reference to the stored response
-			request.response = replaceByPath(output, reference, path);
-			// request.response =
-			// 	typeof replacer === "function"
-			// 		? replacer({ input, output, reference })
-			// 		: replacePayloadByPath({
-			// 			output,
-			// 			reference,
-			// 			path: replacer,
-			// 		});
-
-			logger(`Replaced payload with reference`, {
-				reference,
-				output: request.response,
-			});
-
-			index++;
-		}
-	};
-
 	return {
-		before: onReadInput,
-		after: onWriteOutput,
+		// onReadInput
+		before: async (request) => {
+			// setting read to false will skip the store
+			if (opts.read === false) {
+				logger(`Read is disabled, skipping store`);
+				return;
+			}
+
+			// setting read to true or not setting it at all will enable the store
+			const readOptions = opts.read === true || !opts.read ? {} : opts.read;
+
+			const { event: input, context } = request;
+
+			if (
+				input === null ||
+				input === undefined ||
+				typeof input !== "object" ||
+				Object.keys(input).length === 0
+			) {
+				logger(`Input must be an object, skipping store`);
+				return;
+			}
+
+			// check if the event contains a reference to a stored payload
+			// if it does, load the payload from the store
+			// if it doesn't, leave the event untouched
+			// const references = findAllReferences(input);
+			// if (!references || references.length === 0) {
+			// 	logger(`No reference found in input`);
+			// 	return;
+			// }
+
+			// logger(`Found ${references.length} references in input`, { references });
+			let index = 0;
+			for (const path of generateReferencePaths({ input, path: "" })) {
+				logger(`Process reference at ${path}`);
+
+				const reference = selectByPath(input, formatPath(path, MIDDY_STORE));
+				const readInput = {
+					input, // TODO Object.freeze(input)?
+					reference,
+				};
+
+				// find a store that can load the reference
+				const store = stores.find(
+					(store): store is ReadableStore =>
+						"canRead" in store && "read" in store && store.canRead(readInput),
+				);
+				if (!store) {
+					if (passThrough) {
+						logger(`No store was found to load reference, passthrough input`);
+						return;
+					}
+
+					logger(`No store was found to load reference, throwing error`);
+					throw new Error(
+						`No store can load reference: ${JSON.stringify(reference)}`,
+					);
+				}
+
+				logger(`Found store "${store.name}" to load reference`);
+
+				// load the payload from the store
+				const payload = await store.read(readInput);
+
+				logger(`Loaded payload from store "${store.name}"`, {
+					input,
+					path,
+					payload,
+				});
+
+				// replace the reference with the payload
+				request.event = replaceByPath(input, payload, path);
+
+				logger(`Replaced reference with payload`, { path, payload });
+
+				index++;
+			}
+		},
+
+		// onWriteOutput
+		after: async (request) => {
+			// setting write to false will skip the store
+			if (opts.write === false) {
+				logger(`Write is disabled, skipping store`);
+				return;
+			}
+
+			// setting write to true or not setting it at all will enable the store
+			const writeOptions = opts.write === true || !opts.write ? {} : opts.write;
+			const selector = writeOptions.selector ?? DEFAULT_OUTPUT_SELECTOR;
+			// const replacer = writeOptions.replacer ?? selector;
+			const size = writeOptions.size ?? MAX_SIZE_STEPFUNCTIONS;
+
+			const { response: output, event: input } = request;
+
+			if (
+				output === null ||
+				output === undefined ||
+				typeof output !== "object" ||
+				Object.keys(output).length === 0
+			) {
+				logger(`Output must be an object, skipping store`);
+				return;
+			}
+
+			// check if response size exceeds the maximum allowed size
+			// if it does, store the response in the store
+			// if it doesn't, leave the response untouched
+			// if maxSize is 0, always store the response in the store
+			const maxSize = sizeToNumber(
+				typeof size === "function" ? size({ input, output }) : size,
+			);
+			const byteSize = calculateByteSize(output);
+			if (maxSize > 0 && byteSize < maxSize) {
+				logger(
+					`Output size of ${byteSize} bytes is less than max size of ${maxSize}, skipping store`,
+				);
+				return;
+			}
+
+			logger(
+				`Output size of ${byteSize} bytes exceeds max size of ${maxSize} bytes, save in store`,
+			);
+
+			// select payload to be saved
+			// if no selector is specified, save the entire response
+			// if a selector is specified, use it to select the payload to be save
+			// const payload =
+			// 	typeof selector === "function"
+			// 		? selector({ input, output })
+			// 		: selectPayloadByPath({ output, path: selector });
+
+			let index = 0;
+			for (const path of generatePayloadPaths({ output, selector })) {
+				logger(`Process payload at ${path}`);
+
+				const payload = selectByPath(output, path);
+
+				const storeOutput: WriteOutput<TInput, TOutput> = {
+					input, // TODO Object.freeze(input)?
+					output, // TODO Object.freeze(output)?
+					payload,
+					byteSize: calculateByteSize(payload),
+					index,
+				};
+
+				logger(`Selected payload`, {
+					path,
+					payload,
+					byteSize: storeOutput.byteSize,
+				});
+
+				// find a store that can store the payload
+				// if there are multiple stores, store the response in the first store that accepts the response
+				// if no store accepts the response, leave the response untouched
+				const store = stores.find(
+					(store): store is WritableStore =>
+						"canWrite" in store &&
+						"write" in store &&
+						store.canWrite(storeOutput),
+				);
+				if (!store) {
+					if (passThrough) {
+						logger(`No store was found to save payload, passthrough output`);
+						return;
+					}
+
+					logger(`No store was found to save payload, throwing error`);
+					throw new Error(`No store can save payload`);
+				}
+
+				logger(`Found store "${store.name}" to save payload`);
+
+				// store the payload in the store
+				const reference: MiddyStore<any> = {
+					[MIDDY_STORE]: await store.write(storeOutput),
+				};
+
+				logger(`Saved payload in store "${store.name}"`);
+
+				// replace the response with a reference to the stored response
+				request.response = replaceByPath(output, reference, path);
+				// request.response =
+				// 	typeof replacer === "function"
+				// 		? replacer({ input, output, reference })
+				// 		: replacePayloadByPath({
+				// 			output,
+				// 			reference,
+				// 			path: replacer,
+				// 		});
+
+				logger(`Replaced payload with reference`, {
+					reference,
+					output: request.response,
+				});
+
+				index++;
+			}
+		},
 	};
 };
