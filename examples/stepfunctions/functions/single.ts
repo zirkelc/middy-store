@@ -1,7 +1,7 @@
-import { randomBytes, randomUUID } from "crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import middy from "@middy/core";
-import { Handler } from "aws-lambda";
-import { loadInput, storeOutput } from "middy-store-";
+import type { Handler } from "aws-lambda";
+import { loadInput, storeOutput } from "middy-store";
 import { S3Store } from "middy-store-s3";
 
 const MAX_OUTPUT_SIZE_KB = 256; // https://docs.aws.amazon.com/step-functions/latest/dg/limits.html

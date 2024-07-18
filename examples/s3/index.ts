@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import middy from "@middy/core";
 import { Handler } from "aws-lambda";
 import { middyStore } from "middy-store";

@@ -1,13 +1,13 @@
 import middy from "@middy/core";
-import { APIGatewayProxyEventV2, Context, Handler } from "aws-lambda";
+import { APIGatewayProxyEventV2, type Context, Handler } from "aws-lambda";
 import set from "lodash.set";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
-	MiddyStoreOptions,
-	ReadInput,
+	type MiddyStoreOptions,
+	type ReadInput,
 	ReadStoreOptions,
-	Store,
-	WriteOutput,
+	type Store,
+	type WriteOutput,
 	WriteStoreOptions,
 	middyStore,
 } from "./store.js";
@@ -84,7 +84,7 @@ beforeAll(() => {
 	vi.resetAllMocks();
 });
 
-describe("loadInput", () => {
+describe("onReadInput", () => {
 	test.each([null, "foo", 42, true, false, () => {}])(
 		"should passthrough input if is: %s",
 		async (input) => {
@@ -244,7 +244,7 @@ describe("loadInput", () => {
 	});
 });
 
-describe("storeOutput", () => {
+describe("onWriteOutput", () => {
 	test.each([null, "foo", 42, true, false, () => {}])(
 		"should passthrough output if is: %s",
 		async (input) => {

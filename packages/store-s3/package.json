@@ -1,58 +1,57 @@
 {
-  "name": "middy-store-s3",
-  "version": "0.0.0",
-  "description": "",
-  "type": "module",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "exports": {
-    ".": {
-      "require": {
-        "types": "./src/index.ts",
-        "default": "./src/index.ts"
-      },
-      "import": {
-        "types": "./src/index.ts",
-        "default": "./src/index.ts"
-      }
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "publishConfig": {
-    "main": "./dist/index.js",
-    "module": "./dist/index.cjs",
-    "exports": {
-      ".": {
-        "require": {
-          "types": "./dist/index.d.cts",
-          "default": "./dist/index.cjs"
-        },
-        "import": {
-          "types": "./dist/index.d.ts",
-          "default": "./dist/index.js"
-        }
-      }
-    }
-  },
-  "scripts": {
-    "test": "vitest",
-    "build": "tsc --noEmit",
-    "bundle": "tsup src/index.ts --format cjs,esm --dts --clean",
-    "prepublishOnly": "pnpm run build && pnpm run bundle",
-    "release:patch": "pnpm version patch && pnpm publish --no-git-checks",
-    "release:alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --no-git-checks"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@aws-sdk/client-s3": "^3.507.0",
-    "amazon-s3-url": "^1.0.0",
-    "middy-store": "workspace:*"
-  },
-  "devDependencies": {
-    "@smithy/types": "^2.10.1"
-  }
+	"name": "middy-store-s3",
+	"version": "0.0.0",
+	"description": "",
+	"type": "module",
+	"main": "./src/index.ts",
+	"module": "./src/index.ts",
+	"exports": {
+		".": {
+			"require": {
+				"types": "./src/index.ts",
+				"default": "./src/index.ts"
+			},
+			"import": {
+				"types": "./src/index.ts",
+				"default": "./src/index.ts"
+			}
+		}
+	},
+	"files": ["dist"],
+	"publishConfig": {
+		"main": "./dist/index.js",
+		"module": "./dist/index.cjs",
+		"exports": {
+			".": {
+				"require": {
+					"types": "./dist/index.d.cts",
+					"default": "./dist/index.cjs"
+				},
+				"import": {
+					"types": "./dist/index.d.ts",
+					"default": "./dist/index.js"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"test:unit": "vitest --project unit --root ../..",
+		"test:e2e": "vitest --project e2e --root ../..",
+		"build": "tsc --noEmit",
+		"bundle": "tsup src/index.ts --format cjs,esm --dts --clean",
+		"prepublishOnly": "pnpm run build && pnpm run bundle",
+		"release:patch": "pnpm version patch && pnpm publish --no-git-checks",
+		"release:alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --no-git-checks"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.507.0",
+		"amazon-s3-url": "^1.0.0",
+		"middy-store": "workspace:*"
+	},
+	"devDependencies": {
+		"@smithy/types": "^2.10.1"
+	}
 }

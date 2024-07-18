@@ -1,0 +1,82 @@
+service: middy-store-example-stepfunctions-map
+frameworkVersion: "3"
+
+plugins:
+  - serverless-esbuild
+  - serverless-step-functions
+
+custom:
+  esbuild:
+    platform: node
+    format: esm
+    outExtension: 
+      '.js': '.mjs'
+    banner:     
+      js: "import {createRequire} from 'module'; const require = createRequire(import.meta.url)"
+    bundle: true
+    minify: false
+    sourcemap: false
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  timeout: 30
+  region: us-east-1
+  environment:
+    PAYLOAD_BUCKET: !Ref PayloadBucket
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "s3:PutObject"
+            - "s3:GetObject"
+          Resource: 
+            - "arn:aws:s3:::${self:service}-payload/*"
+            - "arn:aws:s3:::${self:service}-payload"
+
+functions:
+  GeneratePayloads:
+    handler: functions/single.generatePayloadsHandler
+  MapPayloadIterator:
+    handler: functions/single.mapPayloadIteratorHandler
+
+stepFunctions:
+  stateMachines:
+    MapPayloadStateMachine:
+      name: MapPayloadStateMachine
+      definition:
+        StartAt: GeneratePayloads
+        States:
+          GeneratePayloads:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [GeneratePayloads, Arn]
+            Next: MapPayloads
+          MapPayloads:
+            Type: Map
+            MaxConcurrency: 1
+            ItemsPath: $.iterator
+            ItemSelector: 
+              "index.$": "$$.Map.Item.Index"
+              "payload.$": "$.payload"
+            ItemProcessor:
+              ProcessorConfig:
+                Mode: INLINE
+              StartAt: MapPayloadIterator
+              States:
+                MapPayloadIterator:
+                  Type: Task
+                  Resource:
+                    Fn::GetAtt: [MapPayloadIterator, Arn]            
+                  End: true
+            Next: Done
+          Done:
+            Type: Succeed
+            
+resources:
+  Resources:
+    PayloadBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:service}-payload

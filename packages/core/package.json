@@ -1,62 +1,60 @@
 {
-  "name": "middy-store",
-  "version": "0.0.0",
-  "description": "",
-  "repository": "https://github.com/zirkelc/middy-store.git",
-  "type": "module",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "exports": {
-    ".": {
-      "require": {
-        "types": "./src/index.ts",
-        "default": "./src/index.ts"
-      },
-      "import": {
-        "types": "./src/index.ts",
-        "default": "./src/index.ts"
-      }
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "publishConfig": {
-    "main": "./dist/index.js",
-    "module": "./dist/index.cjs",
-    "exports": {
-      ".": {
-        "require": {
-          "types": "./dist/index.d.cts",
-          "default": "./dist/index.cjs"
-        },
-        "import": {
-          "types": "./dist/index.d.ts",
-          "default": "./dist/index.js"
-        }
-      }
-    }
-  },
-  "scripts": {
-    "test": "vitest",
-    "build": "tsc --noEmit",
-    "bundle": "tsup ./src/index.ts --format cjs,esm --dts --clean",
-    "prepublishOnly": "pnpm run build && pnpm run bundle",
-    "release:patch": "pnpm version patch && pnpm publish --no-git-checks",
-    "release:alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --no-git-checks"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "lodash.get": "^4.4.2",
-    "lodash.set": "^4.3.2",
-    "lodash.topath": "^4.5.2"
-  },
-  "devDependencies": {
-    "@middy/core": "^5.2.3",
-    "@types/lodash.get": "^4.4.9",
-    "@types/lodash.set": "^4.3.9",
-    "@types/lodash.topath": "^4.5.9"
-  }
+	"name": "middy-store",
+	"version": "0.0.0",
+	"description": "",
+	"repository": "https://github.com/zirkelc/middy-store.git",
+	"type": "module",
+	"main": "./src/index.ts",
+	"module": "./src/index.ts",
+	"exports": {
+		".": {
+			"require": {
+				"types": "./src/index.ts",
+				"default": "./src/index.ts"
+			},
+			"import": {
+				"types": "./src/index.ts",
+				"default": "./src/index.ts"
+			}
+		}
+	},
+	"files": ["dist"],
+	"publishConfig": {
+		"main": "./dist/index.js",
+		"module": "./dist/index.cjs",
+		"exports": {
+			".": {
+				"require": {
+					"types": "./dist/index.d.cts",
+					"default": "./dist/index.cjs"
+				},
+				"import": {
+					"types": "./dist/index.d.ts",
+					"default": "./dist/index.js"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"test": "vitest",
+		"build": "tsc --noEmit",
+		"bundle": "tsup ./src/index.ts --format cjs,esm --dts --clean",
+		"prepublishOnly": "pnpm run build && pnpm run bundle",
+		"release:patch": "pnpm version patch && pnpm publish --no-git-checks",
+		"release:alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --no-git-checks"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"lodash.get": "^4.4.2",
+		"lodash.set": "^4.3.2",
+		"lodash.topath": "^4.5.2"
+	},
+	"devDependencies": {
+		"@middy/core": "^5.2.3",
+		"@types/lodash.get": "^4.4.9",
+		"@types/lodash.set": "^4.3.9",
+		"@types/lodash.topath": "^4.5.9"
+	}
 }

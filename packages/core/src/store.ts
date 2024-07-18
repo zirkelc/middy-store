@@ -1,13 +1,13 @@
 import type { MiddlewareObj } from "@middy/core";
 import {
-	MAX_SIZE_STEPFUNCTIONS,
 	calculateByteSize,
 	formatPath,
 	generatePayloadPaths,
 	generateReferencePaths,
+	isObject,
 	replaceByPath,
+	resolvableFn,
 	selectByPath,
-	sizeToNumber,
 } from "./utils.js";
 
 // https://middy.js.org/docs/writing-middlewares/configurable-middlewares
@@ -20,8 +20,7 @@ export type MiddyStore<TReference> = {
 
 export type Resolveable<TResolved, TArgs extends any[] = []> =
 	| TResolved
-	| ((...args: TArgs) => TResolved)
-	| { env: string };
+	| ((...args: TArgs) => TResolved);
 
 export type Payload<TPayload = any> = TPayload;
 export type Reference<TReference = any> = TReference;
@@ -35,25 +34,33 @@ export type InputReplacer<TInput> = Path | ((args: { input: TInput }) => any);
 
 // TODO: add support for payload[]
 export type OutputSelector<TInput, TOutput> = Path;
-//| ((args: { input: TInput; output: TOutput }) => any);
 export type OutputReplacer<TInput, TOutput> = Path;
-// | ((args: {
-// 	input: TInput;
-// 	output: TOutput;
-// 	reference: MiddyStore<any>;
-// }) => any);
 
-export type Size =
-	| number
-	| "always"
-	| "never"
-	| "stepfunctions"
-	| "lambda-sync"
-	| "lambda-async";
+export const MaxOutputSize = {
+	/**
+	 * Always write the output to the store.
+	 */
+	ALWAYS: 0,
+	/**
+	 * The maximum size for Step Functions payloads is 256KB.
+	 * @see https://docs.aws.amazon.com/step-functions/latest/dg/limits-overview.html
+	 */
+	STEP_FUNCTIONS: 256 * 1024, // 256KB
+	/**
+	 * The maximum size for synchronous Lambda invocations is 6MB.
+	 * @see https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html
+	 */
+	LAMBDA_SYNC: 6 * 1024 * 1024, // 6MB,
+	/**
+	 * The maximum size for asynchronous Lambda payloads is 256KB.
+	 * @see https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html
+	 */
+	LAMBDA_ASYNC: 256 * 1024, // 256KB,
+};
 
 export type OutputSize<TInput, TOutput> =
-	| Size
-	| ((args: { input: TInput; output: TOutput }) => Size);
+	| number
+	| ((args: { input: TInput; output: TOutput }) => number);
 
 export type StoreOptions = {
 	maxSize?: number;
@@ -71,14 +78,6 @@ export type ReadInput<TInput = unknown, TReference = unknown> = {
 	input: TInput;
 	reference: TReference;
 };
-
-// export interface Store<TInput = unknown, TOutput = unknown> {
-// 	name: string;
-// 	canLoad?: (input: LoadInput<TInput>) => boolean;
-// 	load?: (input: LoadInput<TInput>) => Promise<Payload>;
-// 	canStore?: (output: StoreOutput<TInput, TOutput>) => boolean;
-// 	store?: (output: StoreOutput<TInput, TOutput>) => Promise<Reference>;
-// }
 
 export interface Store<
 	TInput = unknown,
@@ -109,6 +108,7 @@ export interface WritableStore<
 	write: (output: WriteOutput<TInput, TOutput>) => Promise<TReference>;
 }
 
+// TODO add option to clone instead of mutate input/output
 export interface MiddyStoreOptions<TInput = unknown, TOutput = unknown> {
 	stores: Array<
 		| Store<TInput, TOutput>
@@ -137,33 +137,48 @@ export interface WriteStoreOptions<TInput, TOutput> {
 	 * Then, the selected payload will be replaced with a reference to the stored payload.
 	 * It uses Lodash's get function {@link https://lodash.com/docs/4.17.15#get | _.get() } to select the payload from the output.
 	 *
-	 * If the selector ends withs `[*]` and the selected payload is an array, then each element of the array will be saved in the store separately.
+	 * If the selector ends withs `[*]` and the selected payload is an array,
+	 * then each element of the array will be saved in the store separately.
 	 * That means each element of the array will be replaced with a reference to the stored payload.
 	 *
-	 * Examples:
+	 * Example:
 	 * ```
+	 * const payload = {
+	 * 	a: {
+	 * 		b: [{ foo: 'foo' }, { bar: 'bar }, { baz: 'baz' }],
+	 * 	},
+	 * };
+	 *
 	 * selector: ''; // selects the entire output as the payload
 	 * selector: 'a'; // selects the payload at the path 'a'
 	 * selector: 'a.b[0]'; // selects the payload at the path 'a.b[0]'
-	 * selector: 'a.b[*]; // selects the payloads at the paths 'a.b[0], 'a.b[1]', 'a.b[2]', etc.
+	 * selector: 'a.b[*]'; // selects the payloads at the paths 'a.b[0], 'a.b[1]', 'a.b[2]', etc.
 	 * ```
+	 *
+	 * Note: If you use a selector that selects multiple payloads, make sure you configure your store
+	 * to generate unique keys for each payload. Otherwise, the store will overwrite the previous payload.
 	 */
 	selector?: OutputSelector<TInput, TOutput>;
 
+	/**
+	 * Specifies the size at which the output payload should be saved in the store.
+	 * If the output payload exceeds the specified size, it will be saved in the store.
+	 * If the output payload is smaller than the specified size, it will be left untouched.
+	 * If the output payload should always be saved in the store, set the size to 0.
+	 */
 	size?: OutputSize<TInput, TOutput>;
 }
 
-const DEFAULT_OUTPUT_SELECTOR = "";
-const DEFAULT_DUMMY_LOGGER = (...args: any[]) => {};
+const ROOT_SELECTOR = "";
+const DUMMY_LOGGER = (...args: any[]) => {};
 
 /**
- * Takes an input payload and checks if it exceeds the maximum allowed size of 256KB.
- * If it does, it will store the payload in a store (S3 or DynamoDB) and replace the entire
- * payload with a reference to the stored payload.
- * If the payload is smaller than the maximum allowed size, it will be left untouched.
+ * Takes a payload and checks if it exceeds the maximum allowed size (e.g. 256KB for Step Functions).
+ * If it does, it will store the payload in a store (e.g. S3 or DynamoDB) and replaces the payload with a reference to the stored payload.
+ * If the payload is smaller than the maximum allowed size, it will not be changed.
  *
- * If certain parts of the payload should be preserved, you can specify a selector that will
- * be used to extract the parts that should be preserved in the output.
+ * If only certain parts of the payload should be stored, you can specify a selector that will be used
+ * to extract the part of the payload which should be stored.
  * The selector can be an array of strings or a function that receives the output and returns
  * the parts that should be preserved. If the selector is an array of strings,
  * each element is considered a path to the part that should be preserved.
@@ -178,7 +193,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 	opts: MiddyStoreOptions<TInput, TOutput>,
 ): MiddlewareObj<TInput, TOutput> => {
 	const { stores, passThrough } = opts;
-	const logger = opts.logger ?? DEFAULT_DUMMY_LOGGER;
+	const logger = opts.logger ?? DUMMY_LOGGER;
 
 	return {
 		// onReadInput
@@ -189,38 +204,25 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				return;
 			}
 
-			// setting read to true or not setting it at all will enable the store
+			// setting read to enable or disable the store
+			// true or undefined are identical and will enable the store
+			// false will disable the store
 			const readOptions = opts.read === true || !opts.read ? {} : opts.read;
 
 			const { event: input, context } = request;
 
-			if (
-				input === null ||
-				input === undefined ||
-				typeof input !== "object" ||
-				Object.keys(input).length === 0
-			) {
+			if (!isObject(input) || Object.keys(input).length === 0) {
 				logger(`Input must be an object, skipping store`);
 				return;
 			}
 
-			// check if the event contains a reference to a stored payload
-			// if it does, load the payload from the store
-			// if it doesn't, leave the event untouched
-			// const references = findAllReferences(input);
-			// if (!references || references.length === 0) {
-			// 	logger(`No reference found in input`);
-			// 	return;
-			// }
-
-			// logger(`Found ${references.length} references in input`, { references });
 			let index = 0;
 			for (const path of generateReferencePaths({ input, path: "" })) {
 				logger(`Process reference at ${path}`);
 
 				const reference = selectByPath(input, formatPath(path, MIDDY_STORE));
 				const readInput = {
-					input, // TODO Object.freeze(input)?
+					input,
 					reference,
 				};
 
@@ -269,20 +271,19 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				return;
 			}
 
-			// setting write to true or not setting it at all will enable the store
-			const writeOptions = opts.write === true || !opts.write ? {} : opts.write;
-			const selector = writeOptions.selector ?? DEFAULT_OUTPUT_SELECTOR;
-			// const replacer = writeOptions.replacer ?? selector;
-			const size = writeOptions.size ?? MAX_SIZE_STEPFUNCTIONS;
+			// setting write will enable or disable the store
+			// true or undefined are identical and will enable the store
+			// false will disable the store
+			const writeOptions =
+				opts.write === true || opts.write === undefined ? {} : opts.write;
+			const selector = writeOptions.selector ?? ROOT_SELECTOR;
+			const size = resolvableFn(
+				writeOptions.size ?? MaxOutputSize.STEP_FUNCTIONS,
+			);
 
 			const { response: output, event: input } = request;
 
-			if (
-				output === null ||
-				output === undefined ||
-				typeof output !== "object" ||
-				Object.keys(output).length === 0
-			) {
+			if (!isObject(output) || Object.keys(output).length === 0) {
 				logger(`Output must be an object, skipping store`);
 				return;
 			}
@@ -291,9 +292,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 			// if it does, store the response in the store
 			// if it doesn't, leave the response untouched
 			// if maxSize is 0, always store the response in the store
-			const maxSize = sizeToNumber(
-				typeof size === "function" ? size({ input, output }) : size,
-			);
+			const maxSize = size({ input, output });
 			const byteSize = calculateByteSize(output);
 			if (maxSize > 0 && byteSize < maxSize) {
 				logger(
@@ -306,14 +305,6 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				`Output size of ${byteSize} bytes exceeds max size of ${maxSize} bytes, save in store`,
 			);
 
-			// select payload to be saved
-			// if no selector is specified, save the entire response
-			// if a selector is specified, use it to select the payload to be save
-			// const payload =
-			// 	typeof selector === "function"
-			// 		? selector({ input, output })
-			// 		: selectPayloadByPath({ output, path: selector });
-
 			let index = 0;
 			for (const path of generatePayloadPaths({ output, selector })) {
 				logger(`Process payload at ${path}`);
@@ -321,8 +312,8 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				const payload = selectByPath(output, path);
 
 				const storeOutput: WriteOutput<TInput, TOutput> = {
-					input, // TODO Object.freeze(input)?
-					output, // TODO Object.freeze(output)?
+					input,
+					output,
 					payload,
 					byteSize: calculateByteSize(payload),
 					index,
@@ -364,14 +355,6 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 
 				// replace the response with a reference to the stored response
 				request.response = replaceByPath(output, reference, path);
-				// request.response =
-				// 	typeof replacer === "function"
-				// 		? replacer({ input, output, reference })
-				// 		: replacePayloadByPath({
-				// 			output,
-				// 			reference,
-				// 			path: replacer,
-				// 		});
 
 				logger(`Replaced payload with reference`, {
 					reference,

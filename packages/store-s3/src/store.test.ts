@@ -1,17 +1,17 @@
+import { ReadableStream } from "node:stream/web";
 import {
-	GetObjectCommandOutput,
-	GetObjectRequest,
-	PutObjectRequest,
+	type GetObjectCommandOutput,
+	type GetObjectRequest,
+	type PutObjectRequest,
 	S3Client,
 } from "@aws-sdk/client-s3";
-import { ReadInput, WriteOutput } from "middy-store";
-import { ReadableStream } from "stream/web";
+import type { ReadInput, WriteOutput } from "middy-store";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
-	KeyMaker,
-	S3ObjectReference,
-	S3Reference,
-	S3ReferenceFormat,
+	type KeyMaker,
+	type S3ObjectReference,
+	type S3Reference,
+	type S3ReferenceFormat,
 	S3Store,
 } from "./store.js";
 
@@ -137,24 +137,6 @@ describe("S3Store.canLoad", () => {
 
 		expect(output).toBe(false);
 	});
-
-	// test.each([null, undefined, "", 42, true, false, () => { }, {}])(
-	// 	"should throw an error for invalid reference.bucket: %s",
-	// 	async (bucket) => {
-	// 		const input = { reference: { ...mockReference, bucket } };
-
-	// 		expect(() => s3Store.canLoad(input as any)).toThrowError();
-	// 	},
-	// );
-
-	// test.each([null, undefined, "", 42, true, false, () => { }, {}])(
-	// 	"should throw an error for invalid reference.key: %s",
-	// 	async (key) => {
-	// 		const input = { reference: { ...mockReference, key } };
-
-	// 		expect(() => s3Store.canLoad(input as any)).toThrowError();
-	// 	},
-	// );
 });
 
 describe("S3Store.load", () => {
@@ -414,30 +396,28 @@ describe("S3Store.store", () => {
 		expect(s3ObjectReference.key).toEqual(result);
 	});
 
-	describe("reference", () => {
-		test.each<{
-			format: S3ReferenceFormat["type"];
-			region?: string;
-			reference: S3Reference;
-		}>([
-			{ format: "arn", reference: mockArnReference },
-			{ format: "arn", region, reference: mockArnReference },
-			{ format: "url", reference: mockUrlReference },
-			{ format: "url", region, reference: mockUrlReference },
-			{ format: "object", reference: mockObjectReference },
-			{ format: "object", region, reference: mockObjectReferenceWithRegion },
-		])(
-			`should return reference as $format`,
-			async ({ format, region, reference }) => {
-				const spy = mockClient();
-				const s3Store = new S3Store({ bucket, key, region, format });
-				const input = mockStoreOutput;
+	test.each<{
+		format: S3ReferenceFormat["type"];
+		region?: string;
+		reference: S3Reference;
+	}>([
+		{ format: "arn", reference: mockArnReference },
+		{ format: "arn", region, reference: mockArnReference },
+		{ format: "url", reference: mockUrlReference },
+		{ format: "url", region, reference: mockUrlReference },
+		{ format: "object", reference: mockObjectReference },
+		{ format: "object", region, reference: mockObjectReferenceWithRegion },
+	])(
+		`should return reference as $format`,
+		async ({ format, region, reference }) => {
+			const spy = mockClient();
+			const s3Store = new S3Store({ bucket, key, region, format });
+			const input = mockStoreOutput;
 
-				const output = await s3Store.write(input);
+			const output = await s3Store.write(input);
 
-				expect(spy).toHaveBeenCalled();
-				expect(output).toEqual(reference);
-			},
-		);
-	});
+			expect(spy).toHaveBeenCalled();
+			expect(output).toEqual(reference);
+		},
+	);
 });

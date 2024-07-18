@@ -1,4 +1,22 @@
-import { defineWorkspace } from "vitest/config";
+import { configDefaults, defineWorkspace } from "vitest/config";
 
-// https://vitest.dev/guide/workspace.html#defining-a-workspace
-export default defineWorkspace(["packages/*"]);
+export default defineWorkspace([
+	{
+		test: {
+			name: "unit",
+			include: ["**/*.{test,spec}.?(c|m)[jt]s?(x)"],
+			exclude: [...configDefaults.exclude, "tests"],
+
+			// https://vitest.dev/config/#typecheck
+			typecheck: {
+				enabled: true,
+			},
+		},
+	},
+	{
+		test: {
+			name: "e2e",
+			include: ["**/tests/*.{test,spec}.?(c|m)[jt]s?(x)"],
+		},
+	},
+]);

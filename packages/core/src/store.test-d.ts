@@ -1,11 +1,11 @@
 import middy from "@middy/core";
-import { APIGatewayProxyEventV2, Context, Handler } from "aws-lambda";
+import { APIGatewayProxyEventV2, type Context, Handler } from "aws-lambda";
 import set from "lodash.set";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
 	ReadInput,
 	ReadStoreOptions,
-	Store,
+	type Store,
 	WriteOutput,
 	WriteStoreOptions,
 } from "./store.js";

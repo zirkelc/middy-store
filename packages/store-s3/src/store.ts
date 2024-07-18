@@ -1,26 +1,28 @@
 import {
 	GetObjectCommand,
-	GetObjectCommandOutput,
+	type GetObjectCommandOutput,
 	PutObjectCommand,
-	PutObjectCommandInput,
+	type PutObjectCommandInput,
 	S3Client,
-	S3ClientConfig,
+	type S3ClientConfig,
 } from "@aws-sdk/client-s3";
-import { S3UrlFormat, isS3Url, parseS3Url } from "amazon-s3-url";
-import type {
-	ReadInput,
-	Resolveable,
-	Store,
-	StoreOptions,
-	WriteOutput,
+import { type S3UrlFormat, isS3Url, parseS3Url } from "amazon-s3-url";
+import {
+	type ReadInput,
+	type Resolveable,
+	type Store,
+	type StoreOptions,
+	type WriteOutput,
+	isObject,
+	resolvableFn,
 } from "middy-store";
 import {
 	formatS3Reference,
-	isS3Arn,
 	isS3Object,
+	isS3ObjectArn,
 	isValidBucket,
 	isValidKey,
-	parseS3Arn,
+	parseS3ObjectArn,
 	parseS3Reference,
 	uuidKey,
 } from "./utils.js";
@@ -51,9 +53,13 @@ export type Region = Resolveable<string>;
 // 	| string
 // 	| ((output: WriteOutput<TInput, TOutput>) => string);
 
+export type KeyMakerArgs<TInput = unknown, TOutput = unknown> = WriteOutput<
+	TInput,
+	TOutput
+>;
 export type KeyMaker<TInput = unknown, TOutput = unknown> = Resolveable<
 	string,
-	[WriteOutput<TInput, TOutput>]
+	[KeyMakerArgs<TInput, TOutput>]
 >;
 
 export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
@@ -66,11 +72,14 @@ export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
 	logger?: (...args: any[]) => void;
 }
 
+export const STORE_NAME = "s3" as const;
+
 export class S3Store<TInput = unknown, TOutput = unknown>
 	implements Store<TInput, TOutput, S3Reference>
 {
-	readonly name = "s3" as const;
+	readonly name = STORE_NAME;
 
+	#config: S3ClientConfig;
 	#maxSize: number;
 	// #client: S3Client;
 	#region: Region | undefined;
@@ -83,6 +92,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	// onStore?: (output: StoreOutput) => boolean | PutObjectCommandInput;
 
 	constructor(opts: S3StoreOptions<TInput, TOutput>) {
+		this.#config = opts.config ?? {};
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#bucket = opts.bucket;
 		this.#key = opts.key ?? uuidKey;
@@ -94,30 +104,29 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			opts.format === undefined
 				? { type: "url", format: "s3-global-path" }
 				: opts.format === "url"
-				  ? { type: "url", format: "s3-global-path" }
-				  : opts.format === "arn"
-					  ? { type: "arn" }
-					  : opts.format === "object"
-						  ? { type: "object" }
-						  : opts.format;
+					? { type: "url", format: "s3-global-path" }
+					: opts.format === "arn"
+						? { type: "arn" }
+						: opts.format === "object"
+							? { type: "object" }
+							: opts.format;
 	}
 
 	canRead(input: ReadInput<TInput, unknown>): boolean {
 		this.#logger("Checking if store can load input");
 
 		// input must be an object
-		if (input === null || input === undefined || typeof input !== "object")
-			return false;
+		if (!isObject(input)) return false;
 
 		// reference must be defined
-		const { reference } = input;
-		if (reference === null || reference === undefined) return false;
+		if (input.reference === null || input.reference === undefined) return false;
 
-		const bucketFn = resolve(this.#bucket);
+		const reference = input.reference as S3Reference;
+		const bucketFn = resolvableFn(this.#bucket);
 		const bucket = bucketFn();
 
-		if (isS3Arn(reference)) {
-			const { bucket: otherBucket } = parseS3Arn(reference);
+		if (isS3ObjectArn(reference)) {
+			const { bucket: otherBucket } = parseS3ObjectArn(reference);
 			return otherBucket === bucket;
 		}
 
@@ -138,10 +147,11 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	async read(input: ReadInput<TInput, S3Reference>): Promise<unknown> {
 		this.#logger("Loading payload");
 
-		const regionFn = resolve(this.#region);
+		const regionFn = resolvableFn(this.#region);
 		const region = regionFn();
 
 		const client = new S3Client({
+			...this.#config,
 			region,
 		});
 
@@ -165,7 +175,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		if (output.byteSize > this.#maxSize) return false;
 		if (output.payload === null || output.payload === undefined) return false;
 
-		const bucketFn = resolve(this.#bucket);
+		const bucketFn = resolvableFn(this.#bucket);
 		const bucket = bucketFn();
 		if (!isValidBucket(bucket)) {
 			this.#logger("Invalid bucket", { bucket });
@@ -174,7 +184,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			);
 		}
 
-		const keyFn = resolve(this.#key);
+		const keyFn = resolvableFn(this.#key);
 		const key = keyFn(output);
 		if (!isValidKey(key)) {
 			this.#logger("Invalid key", { key });
@@ -191,13 +201,13 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	): Promise<S3Reference> {
 		this.#logger("Saving payload");
 
-		const regionFn = resolve(this.#region);
+		const regionFn = resolvableFn(this.#region);
 		const region = regionFn();
 
-		const bucketFn = resolve(this.#bucket);
+		const bucketFn = resolvableFn(this.#bucket);
 		const bucket = bucketFn();
 
-		const keyFn = resolve(this.#key);
+		const keyFn = resolvableFn(this.#key);
 		const key = keyFn(output);
 
 		if (
@@ -214,6 +224,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		this.#logger("Resolved bucket and key", { bucket, key, region });
 
 		const client = new S3Client({
+			...this.#config,
 			region,
 		});
 

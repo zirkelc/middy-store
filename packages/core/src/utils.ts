@@ -7,23 +7,36 @@ import type {
 	ReadInput,
 	ReadableStore,
 	Resolveable,
-	Size,
 	Store,
 	WritableStore,
 	WriteOutput,
 } from "./store.js";
 import { MIDDY_STORE } from "./store.js";
 
-export function resolve<TResolved, TArgs extends any[] = []>(
-	input: Resolveable<TResolved, TArgs>,
-): (...args: TArgs) => TResolved | string {
-	return typeof input === "function"
-		? (input as (...args: TArgs) => TResolved)
-		: typeof input === "object" && input !== null && "env" in input
-		  ? (...args: TArgs) => process.env[input.env] as TResolved | string
-		  : (...args: TArgs) => input as TResolved;
+/**
+ * Returns true if the value is an object and not null.
+ */
+export function isObject(value: unknown): value is Record<string, any> {
+	return typeof value === "object" && value !== null;
 }
 
+/**
+ * Coerces the input into a resolvable function.
+ * If the input is already a function, it returns it.
+ * Otherwise, it returns a function that returns the input value.
+ */
+export function resolvableFn<TResolved, TArgs extends any[] = []>(
+	input: Resolveable<TResolved, TArgs>,
+): (...args: TArgs) => TResolved {
+	return typeof input === "function"
+		? (input as (...args: TArgs) => TResolved)
+		: (...args: TArgs) => input as TResolved;
+}
+
+/**
+ * Tries to parse a JSON string and returns the parsed object.
+ * Returns false if the input is not a valid JSON string.
+ */
 export function tryParseJSON(json: string | undefined): object | false {
 	// handle null, undefined, and empty string
 	if (!json) return false;
@@ -43,6 +56,10 @@ export function tryParseJSON(json: string | undefined): object | false {
 	return false;
 }
 
+/**
+ * Tries to stringify an object and return the JSON string.
+ * Returns false if the input is not a valid JSON object.
+ */
 export function tryStringifyJSON(object: unknown): string | false {
 	// handle null and undefined
 	if (!object) return false;
@@ -66,14 +83,13 @@ export function tryStringifyJSON(object: unknown): string | false {
 	return false;
 }
 
-// export const isReadableStore = (store: Store | ReadableStore | WritableStore, input: LoadInput): store is ReadableStore =>
-// 	"canLoad" in store && "load" in store && store.canLoad(input);
-
-// export const isWritableStore = (store: ReadableStore | WritableStore, output: StoreOutput): store is WritableStore =>
-// 	"canStore" in store && "store" in store && store.canStore(output);
-
+/**
+ * Calculates the UTF-8 byte size of a payload.
+ * If the payload is a string, it returns the byte length of the string.
+ * If the payload is an object, it stringifies the object and returns the byte length of the JSON string.
+ */
 export function calculateByteSize(payload: any) {
-	if (typeof payload === "string") return Buffer.byteLength(payload);
+	if (typeof payload === "string") return Buffer.byteLength(payload, "utf8");
 
 	if (typeof payload === "object")
 		return Buffer.byteLength(JSON.stringify(payload));
@@ -94,16 +110,17 @@ export function formatPath(path: Path, key: string | number): string {
 }
 
 export function selectByPath(source: Record<string, any>, path: Path): any {
-	// if (typeof selector === "function") {
-	// 	return selector({ output });
-	// }
-
 	const pathArray = toPath(path);
 	const value = pathArray.length === 0 ? source : get(source, pathArray);
 
 	return value;
 }
 
+/**
+ * Replaces the value at the given `path` in the `source` object with the new `value`.
+ * The `source` object is mutated and returned.
+ * If the `path` is empty, it returns the new `value`.
+ */
 export function replaceByPath(
 	source: Record<string, any>,
 	value: Record<string, any>,
@@ -111,6 +128,7 @@ export function replaceByPath(
 ): any {
 	const pathArray = toPath(path);
 
+	// TODO option to clone instead of mutate?
 	return pathArray.length === 0 ? value : set(source, pathArray, value);
 }
 
@@ -122,10 +140,9 @@ export function* generatePayloadPaths({
 	output,
 	selector,
 }: GeneratePathsArgs): Generator<Path> {
-	const isMultiPayload = selector.endsWith("[*]");
-	const path = isMultiPayload ? selector.slice(0, -3).trim() : selector.trim();
+	const isMultiPayload = selector.trim().endsWith("[*]");
+	const path = isMultiPayload ? selector.trim().slice(0, -3) : selector.trim();
 
-	// const pathArray = toPath(path);
 	const payload = path.length === 0 ? output : get(output, path);
 
 	if (isMultiPayload && Array.isArray(payload)) {
@@ -142,64 +159,16 @@ export function* generatePayloadPaths({
 	}
 }
 
-type ReplacePayloadWithReferenceArgs = {
-	output: any;
-	path: Path;
-	reference: MiddyStore<any>;
-};
-export function replacePayloadByPath({
-	output,
-	reference,
-	path,
-}: ReplacePayloadWithReferenceArgs): Record<string, any> {
-	const pathArray = toPath(path);
-
-	if (pathArray.length === 0) return reference;
-
-	// // If the path ends with "[]", it means we are pushing the reference into an array
-	// // If the parent element is an array, we push the reference into it
-	// // Otherwise we create a new array with the reference
-	// if (path.endsWith("[]")) {
-	// 	const parentPath = pathArray.slice(0, -1);
-	// 	const parent = get(output, parentPath);
-	// 	if (Array.isArray(parent)) {
-	// 		return set(output, parentPath, parent.concat(reference));
-	// 	}
-
-	// 	// TODO check if that works
-	// 	// if (Array.isArray(reference)) {
-	// 	// 	return set(output, pathArray, reference);
-	// 	// }
-
-	// 	return set(output, parentPath, [reference]);
-	// }
-
-	return set(output, pathArray, reference);
-}
-
-export function replaceReferenceByPath(
-	result: Record<string, any>,
-	path: Array<string>,
-	payload: any,
-): Record<string, any> {
-	return path.length === 0 ? payload : set(result, path, payload);
-}
-
-type FindReferenceResult = {
-	reference: any;
-	path: Array<string>;
-};
-
 export const hasReference = <TReference = any>(
-	obj: unknown,
-): obj is MiddyStore<TReference> => {
-	return typeof obj === "object" && obj !== null && MIDDY_STORE in obj;
+	input: unknown,
+): input is MiddyStore<TReference> => {
+	return isObject(input) && MIDDY_STORE in input;
 };
 
 export const getReference = <TReference = any>(
-	obj: unknown,
+	input: unknown,
 ): TReference | undefined => {
-	return hasReference(obj) ? obj[MIDDY_STORE] : undefined;
+	return hasReference(input) ? input[MIDDY_STORE] : undefined;
 };
 
 type GenerateReferencePathsArgs = {
@@ -229,66 +198,5 @@ export function* generateReferencePaths({
 			// Recursively search for references in the next level of the object
 			yield* generateReferencePaths({ input: input[key], path: nextPath });
 		}
-	}
-}
-
-// export function* generateReferencePaths(
-// 	result: Record<string, any>,
-// 	path: Array<string> = [],
-// ): Generator<Path> {
-// 	// let references: FindReferenceResult[] = [];
-
-// 	// Check if the result itself is null or not an object
-// 	if (result === null || typeof result !== "object") return references;
-
-// 	// Check for the reference in the current level of the object
-// 	const reference = getReference(result);
-// 	if (reference) yield path;
-// 	// if (result[MIDDY_STORE]) {
-// 	// 	references.push({ reference: result[MIDDY_STORE], path });
-// 	// }
-
-// 	// Iterate through the object recursively to find all references
-// 	for (const key in result) {
-// 		if (Object.hasOwn(result, key)) {
-// 			if (result[key] === null || typeof result[key] !== "object") continue;
-
-// 			const nextPath = path.concat(key); // Prepare the next path
-
-// 			// Recursively search for references in the next level of the object
-// 			const childReferences = findAllReferences(result[key], nextPath);
-// 			references = references.concat(childReferences);
-// 		}
-// 	}
-
-// 	return references;
-// }
-
-export const MAX_SIZE_STEPFUNCTIONS = 256 * 1024; // 256KB
-export const MAX_SIZE_LAMBDA_SYNC = 6 * 1024 * 1024; // 6MB
-export const MAX_SIZE_LAMBDA_ASYNC = 256 * 1024; // 256KB
-
-export function sizeToNumber(size: Size): number {
-	if (typeof size === "number") return size;
-
-	switch (size) {
-		case "always":
-			return 0;
-
-		case "never":
-			return Number.POSITIVE_INFINITY;
-
-		case "stepfunctions":
-			return MAX_SIZE_STEPFUNCTIONS;
-
-		case "lambda-sync":
-			return MAX_SIZE_LAMBDA_SYNC;
-
-		case "lambda-async":
-			return MAX_SIZE_LAMBDA_ASYNC;
-
-		default:
-			size satisfies never;
-			throw new Error(`Unsupported size: ${size}`);
 	}
 }
