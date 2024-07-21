@@ -54,7 +54,7 @@ jobs:
         run: pnpm build
 
       - name: Test
-        run: pnpm test
+        run: pnpm test:ci
 
       - name: Coverage
         if: ${{ steps.install.conclusion == 'success' }}
