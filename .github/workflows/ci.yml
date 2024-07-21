@@ -21,9 +21,41 @@ permissions:
 jobs:
   lint:
     name: Lint
-    uses: ./.github/workflows/lint.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Biome
+        uses: biomejs/setup-biome@v2
+        
+      - name: Lint
+        run: biome ci --no-errors-on-unmatched .
 
   test:
     name: Test
-    uses: ./.github/workflows/test.yml
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup and Install
+        id: install
+        uses: ./.github/actions/setup-and-install
+        with:
+          node-version: 20
+
+      - name: Start LocalStack
+        uses: LocalStack/setup-localstack@v0.2.2
+        with:
+          image-tag: 'latest'
+          install-awslocal: 'true'
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
+      - name: Coverage
+        if: ${{ steps.install.conclusion == 'success' }}
+        uses: davelosert/vitest-coverage-report-action@v2

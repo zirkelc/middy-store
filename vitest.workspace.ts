@@ -5,7 +5,7 @@ export default defineWorkspace([
 		test: {
 			name: "unit",
 			include: ["**/*.{test,spec}.?(c|m)[jt]s?(x)"],
-			exclude: [...configDefaults.exclude, "tests"],
+			exclude: [...configDefaults.exclude, "**/tests/**"],
 
 			// https://vitest.dev/config/#typecheck
 			typecheck: {
