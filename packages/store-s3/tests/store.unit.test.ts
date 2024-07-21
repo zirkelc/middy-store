@@ -13,7 +13,7 @@ import {
 	type S3Reference,
 	type S3ReferenceFormat,
 	S3Store,
-} from "./store.js";
+} from "../src/store.js";
 
 const bucket = "bucket";
 const key = "key";

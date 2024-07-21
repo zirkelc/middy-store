@@ -8,10 +8,6 @@
 	"module": "./src/index.ts",
 	"exports": {
 		".": {
-			"require": {
-				"types": "./src/index.ts",
-				"default": "./src/index.ts"
-			},
 			"import": {
 				"types": "./src/index.ts",
 				"default": "./src/index.ts"
@@ -24,10 +20,6 @@
 		"module": "./dist/index.cjs",
 		"exports": {
 			".": {
-				"require": {
-					"types": "./dist/index.d.cts",
-					"default": "./dist/index.cjs"
-				},
 				"import": {
 					"types": "./dist/index.d.ts",
 					"default": "./dist/index.js"
@@ -37,11 +29,7 @@
 	},
 	"scripts": {
 		"test": "vitest",
-		"build": "tsc --noEmit",
-		"bundle": "tsup ./src/index.ts --format cjs,esm --dts --clean",
-		"prepublishOnly": "pnpm run build && pnpm run bundle",
-		"release:patch": "pnpm version patch && pnpm publish --no-git-checks",
-		"release:alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --no-git-checks"
+		"build": "tsup ./src/index.ts --format esm --dts --clean"
 	},
 	"keywords": [],
 	"author": "",

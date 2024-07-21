@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { STORE_NAME } from "./store.js";
+import { STORE_NAME } from "../src/store.js";
 import {
 	formatS3ObjectArn,
 	formatS3Reference,
@@ -10,7 +10,7 @@ import {
 	parseS3ObjectArn,
 	parseS3Reference,
 	uuidKey,
-} from "./utils.js";
+} from "../src/utils.js";
 
 const nonStringValues = [null, undefined, "", 42, true, false, {}];
 

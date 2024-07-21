@@ -59,3 +59,5 @@ jobs:
       - name: Coverage
         if: ${{ steps.install.conclusion == 'success' }}
         uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          vite-config-path: vitest.root.ts

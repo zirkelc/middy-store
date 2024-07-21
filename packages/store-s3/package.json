@@ -28,12 +28,7 @@
 	},
 	"scripts": {
 		"build": "tsup src/index.ts --format esm --dts --clean",
-		"test": "vitest --root ../..",
-		"test:unit": "vitest --project unit --root ../..",
-		"test:e2e": "vitest --project e2e --root ../..",
-		"prepublishOnly": "pnpm run build && pnpm run bundle",
-		"release:patch": "pnpm version patch && pnpm publish --no-git-checks",
-		"release:alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --no-git-checks"
+		"test": "vitest"
 	},
 	"keywords": [],
 	"author": "",
