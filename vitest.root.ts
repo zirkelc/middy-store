@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 
 // load region from config to prevent error "ConfigError: Missing region in config"
 // https://github.com/aws/aws-sdk-js/pull/1391
-process.env.AWS_SDK_LOAD_CONFIG = "1";
+// process.env.AWS_SDK_LOAD_CONFIG = "1";
 
 export default defineConfig({
 	test: {

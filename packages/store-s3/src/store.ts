@@ -123,7 +123,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 		const reference = input.reference as S3Reference;
 		const bucketFn = resolvableFn(this.#bucket);
-		const bucket = bucketFn();
+		const bucket = this.#bucket();
 
 		if (isS3ObjectArn(reference)) {
 			const { bucket: otherBucket } = parseS3ObjectArn(reference);
@@ -152,7 +152,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 		const client = new S3Client({
 			...this.#config,
-			region,
+			region: region ?? this.#config.region,
 		});
 
 		const { bucket, key } = parseS3Reference(input.reference);
@@ -225,7 +225,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 		const client = new S3Client({
 			...this.#config,
-			region,
+			region: region ?? this.#config.region,
 		});
 
 		try {
