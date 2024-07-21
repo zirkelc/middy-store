@@ -47,6 +47,15 @@ export interface S3ObjectReference {
 
 export type Bucket = Resolveable<string>;
 
+export type ResolveableToFunction<T> = T extends Resolveable<
+	infer Result,
+	infer Args
+>
+	? (...args: Args) => Result
+	: never;
+
+type B = ResolveableToFunction<Bucket>;
+
 export type Region = Resolveable<string>;
 
 // export type KeyMaker<TInput = unknown, TOutput = unknown> =
@@ -123,7 +132,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 
 		const reference = input.reference as S3Reference;
 		const bucketFn = resolvableFn(this.#bucket);
-		const bucket = this.#bucket();
+		const bucket = bucketFn();
 
 		if (isS3ObjectArn(reference)) {
 			const { bucket: otherBucket } = parseS3ObjectArn(reference);
