@@ -21,7 +21,7 @@
 	"scripts": {
 		"build": "turbo build",
 		"test": "vitest run",
-		"test:ci": "vitest --coverage.enabled",
+		"test:ci": "vitest --coverage.enabled --coverage.provider=v8 --coverage.reporter=json-summary --coverage.reporter=json --coverage.reporter=text-summary",
 		"lint": "biome check . --write --no-errors-on-unmatched",
 		"prepare": "husky"
 	},
