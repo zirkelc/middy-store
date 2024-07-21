@@ -12,7 +12,7 @@ import middy from "@middy/core";
 import type { Context } from "aws-lambda";
 import { MIDDY_STORE, middyStore } from "middy-store";
 import { beforeAll, describe, expect, test, vi } from "vitest";
-import { type KeyMakerArgs, S3Store } from "../src/index.js";
+import { type KeyMakerArgs, S3Store } from "../dist/index.js";
 
 const bucket = "middy-store-s3";
 const config: S3ClientConfig = {

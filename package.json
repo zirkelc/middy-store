@@ -3,6 +3,7 @@
 	"private": true,
 	"version": "1.0.0",
 	"description": "",
+	"packageManager": "pnpm@9.3.0",
 	"type": "module",
 	"module": "src/index.ts",
 	"exports": {
@@ -18,11 +19,13 @@
 		}
 	},
 	"scripts": {
+		"build": "turbo build",
+		"test": "vitest run",
+		"test:ci": "vitest run --coverage.enabled --coverage.provider=v8 --coverage.reporter=json-summary --coverage.reporter=json --coverage.all",
 		"test:unit": "vitest run --project unit",
 		"test:e2e": "vitest run --project e2e",
 		"test:unit:cov": "vitest run --project unit --coverage.enabled --coverage.reporter=v8 --coverage.all",
 		"test:e2e:cov": "vitest run --project e2e --coverage.enabled --coverage.reporter=v8 --coverage.all",
-		"build": "pnpm -r --no-bail build",
 		"lint": "biome check . --write --no-errors-on-unmatched",
 		"prepare": "husky",
 		"release:patch": "pnpm -r release:patch",
@@ -49,10 +52,11 @@
 		"lint-staged": "^15.2.7",
 		"tsup": "^8.1.0",
 		"tsx": "^4.16.2",
+		"turbo": "^2.0.9",
 		"typescript": "^5.5.3",
 		"vitest": "^2.0.3"
 	},
 	"lint-staged": {
-		"*.{ts,json}": ["biome check --apply --no-errors-on-unmatched"]
+		"*.{ts,json}": ["biome check --write --no-errors-on-unmatched"]
 	}
 }
