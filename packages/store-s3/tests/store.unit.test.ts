@@ -8,22 +8,22 @@ import {
 import type { ReadInput, WriteOutput } from "middy-store";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
-	type KeyMaker,
 	type S3ObjectReference,
 	type S3Reference,
 	type S3ReferenceFormat,
 	S3Store,
+	type S3StoreOptions,
 } from "../src/store.js";
 
+const config = { region: "us-east-1" };
 const bucket = "bucket";
 const key = "key";
-const region = "eu-west-1";
 
 const mockArnReference = `arn:aws:s3:::${bucket}/${key}`;
 
 const mockUrlReference = `s3://${bucket}/${key}`;
 
-const mockUrlReferenceWithRegion = `s3://https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+const mockUrlReferenceWithRegion = `s3://https://${bucket}.s3.${config.region}.amazonaws.com/${key}`;
 
 const mockObjectReference: S3ObjectReference = {
 	store: "s3",
@@ -33,7 +33,7 @@ const mockObjectReference: S3ObjectReference = {
 
 const mockObjectReferenceWithRegion: S3ObjectReference = {
 	...mockObjectReference,
-	region,
+	region: config.region,
 };
 
 const mockPayloadWithReference = {
@@ -62,7 +62,7 @@ beforeAll(() => {
 });
 
 describe("S3Store.canLoad", () => {
-	const s3Store = new S3Store({ bucket, key });
+	const s3Store = new S3Store({ config, bucket, key });
 
 	test("should return true for payload", async () => {
 		const input = mockLoadInput;
@@ -140,7 +140,7 @@ describe("S3Store.canLoad", () => {
 });
 
 describe("S3Store.load", () => {
-	const s3Store = new S3Store({ bucket, key });
+	const s3Store = new S3Store({ config, bucket, key });
 
 	const mockClient = (body: string, contentType: string) =>
 		vi.spyOn(S3Client.prototype, "send").mockImplementation((input) =>
@@ -239,7 +239,7 @@ describe("S3Store.load", () => {
 });
 
 describe("S3Store.canStore", () => {
-	const s3Store = new S3Store({ bucket, key });
+	const s3Store = new S3Store({ config, bucket, key });
 
 	test.each(["foo", { foo: "bar" }, 42, true, false])(
 		"should return true for payload type: %s",
@@ -271,7 +271,7 @@ describe("S3Store.canStore", () => {
 	test.each([0, 1_000, 1_000_000, 1_000_000_000, Number.MAX_SAFE_INTEGER])(
 		"should return false for options.maxSize < payload size: %s",
 		async (byteSize) => {
-			const s3Store = new S3Store({ bucket, key, maxSize: 0 });
+			const s3Store = new S3Store({ config, bucket, key, maxSize: 0 });
 
 			const input = { ...mockStoreOutput, byteSize };
 			const output = s3Store.canWrite(input);
@@ -282,7 +282,7 @@ describe("S3Store.canStore", () => {
 	test.each([null, undefined, "", 42, true, false, () => {}, {}])(
 		"should throw an error for invalid options.bucket: %s",
 		async (bucket) => {
-			const s3Store = new S3Store({ bucket: bucket as any, key });
+			const s3Store = new S3Store({ config, bucket: bucket as any, key });
 
 			const input = mockStoreOutput;
 
@@ -293,7 +293,7 @@ describe("S3Store.canStore", () => {
 	test.each([null, undefined, "", 42, true, false, () => {}, {}])(
 		"should throw an error for invalid options.key: %s",
 		async (key) => {
-			const s3Store = new S3Store({ bucket, key: () => key as any });
+			const s3Store = new S3Store({ config, bucket, key: () => key as any });
 
 			const input = mockStoreOutput;
 
@@ -303,7 +303,7 @@ describe("S3Store.canStore", () => {
 });
 
 describe("S3Store.store", () => {
-	const s3Store = new S3Store({ bucket, key });
+	const s3Store = new S3Store({ config, bucket, key });
 
 	const mockClient = () =>
 		vi
@@ -362,30 +362,14 @@ describe("S3Store.store", () => {
 	);
 
 	test.each<{
-		key: KeyMaker<typeof mockPayload, typeof mockPayload>;
+		key: S3StoreOptions["key"];
 		result: string;
 	}>([
 		{ key: "foo", result: "foo" },
 		{ key: () => "foo", result: "foo" },
-		{
-			key: ({ output }) => `output-${output.foo}`,
-			result: `output-${mockStoreOutput.output.foo}`,
-		},
-		{
-			key: ({ input }) => `input-${input.foo}`,
-			result: `input-${mockStoreOutput.input.foo}`,
-		},
-		{
-			key: ({ byteSize }) => `byteSize-${byteSize}`,
-			result: `byteSize-${mockStoreOutput.byteSize}`,
-		},
-		{
-			key: ({ index }) => `index-${index}`,
-			result: `index-${mockStoreOutput.index}`,
-		},
 	])("should generate object key: $result", async ({ key, result }) => {
 		const spy = mockClient();
-		const s3Store = new S3Store({ bucket, key, format: "object" });
+		const s3Store = new S3Store({ config, bucket, key, format: "object" });
 		const input = mockStoreOutput;
 
 		const output = await s3Store.write(input);
@@ -402,16 +386,20 @@ describe("S3Store.store", () => {
 		reference: S3Reference;
 	}>([
 		{ format: "arn", reference: mockArnReference },
-		{ format: "arn", region, reference: mockArnReference },
+		{ format: "arn", region: config.region, reference: mockArnReference },
 		{ format: "url", reference: mockUrlReference },
-		{ format: "url", region, reference: mockUrlReference },
+		{ format: "url", region: config.region, reference: mockUrlReference },
 		{ format: "object", reference: mockObjectReference },
-		{ format: "object", region, reference: mockObjectReferenceWithRegion },
+		{
+			format: "object",
+			region: config.region,
+			reference: mockObjectReferenceWithRegion,
+		},
 	])(
 		`should return reference as $format`,
 		async ({ format, region, reference }) => {
 			const spy = mockClient();
-			const s3Store = new S3Store({ bucket, key, region, format });
+			const s3Store = new S3Store({ config, bucket, key, format });
 			const input = mockStoreOutput;
 
 			const output = await s3Store.write(input);

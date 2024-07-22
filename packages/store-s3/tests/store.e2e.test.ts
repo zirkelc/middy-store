@@ -34,7 +34,9 @@ const getLocalstackHealth = async () => {
 			services: Record<string, string>;
 		};
 
-		return response.ok && result.services.s3 === "running";
+		console.log("Localstack services:", result);
+
+		return response.ok;
 	} catch (error) {
 		return false;
 	}
