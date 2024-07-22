@@ -8,14 +8,6 @@ import {
 
 export const uuidKey = () => randomUUID();
 
-export const isValidKey = (key: unknown): key is string => {
-	return typeof key === "string" && key.length > 0;
-};
-
-export const isValidBucket = (bucket: unknown) => {
-	return typeof bucket === "string" && bucket.length > 0;
-};
-
 export const isS3ObjectArn = (arn: unknown): arn is string => {
 	return (
 		typeof arn === "string" && arn.startsWith("arn:aws:s3") && arn.includes("/")
@@ -24,8 +16,8 @@ export const isS3ObjectArn = (arn: unknown): arn is string => {
 
 export const parseS3ObjectArn = (arn: string): S3Object => {
 	const [_, bucket, key] = arn.match(/^arn:aws:s3:::([^/]+)\/(.+)$/) ?? [];
-	if (!isValidBucket(bucket)) throw new Error(`Invalid S3 ARN: ${arn}`);
-	if (!isValidKey(key)) throw new Error(`Invalid S3 ARN: ${arn}`);
+	if (!bucket?.trim()) throw new Error(`Invalid S3 ARN: ${arn}`);
+	if (!key?.trim()) throw new Error(`Invalid S3 ARN: ${arn}`);
 
 	return { bucket, key };
 };
@@ -45,7 +37,7 @@ export const parseS3Reference = (reference: S3Reference): S3Object => {
 	if (isS3ObjectArn(reference)) return parseS3ObjectArn(reference);
 	if (isS3Url(reference)) return parseS3Url(reference);
 
-	throw new Error(`Invalid S3 reference: ${reference}`);
+	throw new Error(`Invalid reference: ${reference}`);
 };
 
 export const formatS3Reference = (

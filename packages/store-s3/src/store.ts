@@ -20,8 +20,6 @@ import {
 	formatS3Reference,
 	isS3Object,
 	isS3ObjectArn,
-	isValidBucket,
-	isValidKey,
 	parseS3ObjectArn,
 	parseS3Reference,
 	uuidKey,
@@ -45,39 +43,12 @@ export interface S3ObjectReference {
 	region?: string;
 }
 
-export type Bucket = Resolveable<string>;
-
-export type ResolveableToFunction<T> = T extends Resolveable<
-	infer Result,
-	infer Args
->
-	? (...args: Args) => Result
-	: never;
-
-type B = ResolveableToFunction<Bucket>;
-
-export type Region = Resolveable<string>;
-
-// export type KeyMaker<TInput = unknown, TOutput = unknown> =
-// 	| string
-// 	| ((output: WriteOutput<TInput, TOutput>) => string);
-
-export type KeyMakerArgs<TInput = unknown, TOutput = unknown> = WriteOutput<
-	TInput,
-	TOutput
->;
-export type KeyMaker<TInput = unknown, TOutput = unknown> = Resolveable<
-	string,
-	[KeyMakerArgs<TInput, TOutput>]
->;
-
 export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
 	extends StoreOptions {
-	config?: S3ClientConfig;
-	region?: Region;
-	bucket: Bucket;
-	key?: KeyMaker<TInput, TOutput>;
-	format?: "arn" | "object" | "url" | S3ReferenceFormat; // https://stackoverflow.com/questions/44400227/how-to-get-the-url-of-a-file-on-aws-s3-using-aws-sdk/44401684#44401684
+	config: S3ClientConfig | (() => S3ClientConfig);
+	bucket: string | (() => string);
+	key?: string | (() => string);
+	format?: "arn" | "object" | "url" | S3ReferenceFormat;
 	logger?: (...args: any[]) => void;
 }
 
@@ -91,23 +62,34 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	#config: S3ClientConfig;
 	#maxSize: number;
 	// #client: S3Client;
-	#region: Region | undefined;
-	#bucket: Bucket;
-	#key: KeyMaker<TInput, TOutput>;
+	// #region: ResolvedFn<string>;
+	#bucket: string;
+	#key: () => string;
 	#format: S3ReferenceFormat;
 	#logger: (...args: any[]) => void;
 
-	// onLoad?: (input: LoadInput<S3Reference>) => boolean | GetObjectCommandInput;
-	// onStore?: (output: StoreOutput) => boolean | PutObjectCommandInput;
-
 	constructor(opts: S3StoreOptions<TInput, TOutput>) {
-		this.#config = opts.config ?? {};
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
-		this.#bucket = opts.bucket;
-		this.#key = opts.key ?? uuidKey;
-		this.#region = opts.region;
-
 		this.#logger = opts.logger ?? (() => {});
+
+		// resolve to function and invoke it
+		this.#config = resolvableFn(opts.config)();
+		this.#bucket = resolvableFn(opts.bucket)();
+
+		if (!this.#config.region) {
+			this.#logger(`Invalid config: region is missing`, {
+				config: this.#config,
+			});
+			throw new Error(`Invalid config: region is missing`);
+		}
+
+		if (!this.#bucket) {
+			this.#logger("Invalid bucket", { bucket: this.#bucket });
+			throw new Error(`Invalid bucket`);
+		}
+
+		// resolve to function without invoking it
+		this.#key = resolvableFn(opts.key ?? uuidKey);
 
 		this.#format =
 			opts.format === undefined
@@ -131,23 +113,21 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		if (input.reference === null || input.reference === undefined) return false;
 
 		const reference = input.reference as S3Reference;
-		const bucketFn = resolvableFn(this.#bucket);
-		const bucket = bucketFn();
 
 		if (isS3ObjectArn(reference)) {
 			const { bucket: otherBucket } = parseS3ObjectArn(reference);
-			return otherBucket === bucket;
+			return otherBucket === this.#bucket;
 		}
 
 		if (isS3Url(reference)) {
 			const { bucket: otherBucket } = parseS3Url(reference);
 			// TODO check region matches config.region?
-			return otherBucket === bucket;
+			return otherBucket === this.#bucket;
 		}
 
 		if (isS3Object(reference)) {
 			const { bucket: otherBucket } = reference;
-			return otherBucket === bucket;
+			return otherBucket === this.#bucket;
 		}
 
 		return false;
@@ -156,13 +136,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	async read(input: ReadInput<TInput, S3Reference>): Promise<unknown> {
 		this.#logger("Loading payload");
 
-		const regionFn = resolvableFn(this.#region);
-		const region = regionFn();
-
-		const client = new S3Client({
-			...this.#config,
-			region: region ?? this.#config.region,
-		});
+		const client = new S3Client(this.#config);
 
 		const { bucket, key } = parseS3Reference(input.reference);
 		const result = await client.send(
@@ -184,23 +158,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		if (output.byteSize > this.#maxSize) return false;
 		if (output.payload === null || output.payload === undefined) return false;
 
-		const bucketFn = resolvableFn(this.#bucket);
-		const bucket = bucketFn();
-		if (!isValidBucket(bucket)) {
-			this.#logger("Invalid bucket", { bucket });
-			throw new Error(
-				`Invalid bucket. Must be a string, but received: ${bucket}`,
-			);
-		}
-
-		const keyFn = resolvableFn(this.#key);
-		const key = keyFn(output);
-		if (!isValidKey(key)) {
-			this.#logger("Invalid key", { key });
-			throw new Error(`Invalid key. Must be a string, but received: ${key}`);
-		}
-
-		this.#logger("Store can save", { bucket, key });
+		this.#logger("Store can save");
 
 		return true;
 	}
@@ -208,16 +166,19 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	public async write(
 		output: WriteOutput<TInput, TOutput>,
 	): Promise<S3Reference> {
-		this.#logger("Saving payload");
+		this.#logger("Writing payload");
 
-		const regionFn = resolvableFn(this.#region);
-		const region = regionFn();
+		const bucket = this.#bucket;
+		const region =
+			typeof this.#config.region === "function"
+				? await this.#config.region()
+				: this.#config.region;
 
-		const bucketFn = resolvableFn(this.#bucket);
-		const bucket = bucketFn();
-
-		const keyFn = resolvableFn(this.#key);
-		const key = keyFn(output);
+		const key = this.#key();
+		if (!key) {
+			this.#logger("Invalid key", { key });
+			throw new Error(`Invalid key`);
+		}
 
 		if (
 			this.#format.type === "url" &&
@@ -230,12 +191,9 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		}
 
 		const { payload } = output;
-		this.#logger("Resolved bucket and key", { bucket, key, region });
+		this.#logger("Put object to bucket", { bucket, key });
 
-		const client = new S3Client({
-			...this.#config,
-			region: region ?? this.#config.region,
-		});
+		const client = new S3Client(this.#config);
 
 		try {
 			await client.send(
@@ -250,7 +208,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			throw error;
 		}
 
-		this.#logger("Sucessfully saved payload");
+		this.#logger("Wrote payload");
 
 		return formatS3Reference({ bucket, key, region }, this.#format);
 	}

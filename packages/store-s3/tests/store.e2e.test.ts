@@ -26,6 +26,27 @@ const config: S3ClientConfig = {
 };
 const client = new S3Client(config);
 
+// check if localstack is running
+const getLocalstackHealth = async () => {
+	try {
+		const response = await fetch("http://localhost:4566/_localstack/health");
+		const result = (await response.json()) as {
+			services: Record<string, string>;
+		};
+
+		return response.ok && result.services.s3 === "running";
+	} catch (error) {
+		return false;
+	}
+};
+
+const isLocalstackRunning = await getLocalstackHealth();
+if (!isLocalstackRunning) {
+	console.warn(
+		"Localstack is not running. Please start it with `localstack start`.",
+	);
+}
+
 beforeAll(async () => {
 	try {
 		await client.send(new HeadBucketCommand({ Bucket: bucket }));
@@ -88,7 +109,7 @@ const s3Store = new S3Store({
 	format: "arn",
 });
 
-describe("S3Store", () => {
+describe.runIf(isLocalstackRunning)("S3Store", () => {
 	test("should write and read full payload", async () => {
 		const key = randomUUID();
 		mockKey.mockReturnValue(key);

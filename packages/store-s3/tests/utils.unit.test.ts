@@ -5,8 +5,6 @@ import {
 	formatS3Reference,
 	isS3Object,
 	isS3ObjectArn,
-	isValidBucket,
-	isValidKey,
 	parseS3ObjectArn,
 	parseS3Reference,
 	uuidKey,
@@ -22,38 +20,6 @@ describe("uuidKey", () => {
 			/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/,
 		);
 	});
-});
-
-describe("isValidKey", () => {
-	test.each(["foo", "foo/bar", "foo/bar/baz"])(
-		"should return true for a valid key: %s",
-		(key) => {
-			expect(isValidKey(key)).toBe(true);
-		},
-	);
-
-	test.each([...nonStringValues])(
-		"should return false for an invalid key: %s",
-		(key) => {
-			expect(isValidKey(key)).toBe(false);
-		},
-	);
-});
-
-describe("isValidBucket", () => {
-	test.each(["bucket"])(
-		"should return true for a valid bucket: %s",
-		(bucket) => {
-			expect(isValidBucket(bucket)).toBe(true);
-		},
-	);
-
-	test.each([...nonStringValues])(
-		"should return false for an invalid bucket: %s",
-		(bucket) => {
-			expect(isValidBucket(bucket)).toBe(false);
-		},
-	);
 });
 
 describe("isS3ObjectArn", () => {

@@ -22,8 +22,6 @@ export type Resolveable<TResolved, TArgs extends any[] = []> =
 	| TResolved
 	| ((...args: TArgs) => TResolved);
 
-// export type ResolvedFn<TResolved, TArgs extends any[] = []> = ((...args: TArgs) => TResolved);
-
 export type Payload<TPayload = any> = TPayload;
 export type Reference<TReference = any> = TReference;
 
