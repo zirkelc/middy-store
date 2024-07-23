@@ -9,45 +9,27 @@ import {
 	waitUntilBucketExists,
 } from "@aws-sdk/client-s3";
 import middy from "@middy/core";
+import { LocalstackContainer } from "@testcontainers/localstack";
 import type { Context } from "aws-lambda";
 import { MIDDY_STORE, middyStore } from "middy-store";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import { type KeyMakerArgs, S3Store } from "../dist/index.js";
 
+const localstack = await new LocalstackContainer(
+	"localstack/localstack:3",
+).start();
+
 const bucket = "middy-store-s3";
 const config: S3ClientConfig = {
 	region: "us-east-1",
 	forcePathStyle: true, // If you want to use virtual host addressing of buckets, you can remove `forcePathStyle: true`.
-	endpoint: "http://localhost:4566",
+	endpoint: localstack.getConnectionUri(),
 	credentials: {
 		accessKeyId: "test",
 		secretAccessKey: "test",
 	},
 };
 const client = new S3Client(config);
-
-// check if localstack is running
-const getLocalstackHealth = async () => {
-	try {
-		const response = await fetch("http://localhost:4566/_localstack/health");
-		const result = (await response.json()) as {
-			services: Record<string, string>;
-		};
-
-		console.log("Localstack services:", result);
-
-		return response.ok;
-	} catch (error) {
-		return false;
-	}
-};
-
-const isLocalstackRunning = await getLocalstackHealth();
-if (!isLocalstackRunning) {
-	console.warn(
-		"Localstack is not running. Please start it with `localstack start`.",
-	);
-}
 
 beforeAll(async () => {
 	try {
@@ -111,7 +93,7 @@ const s3Store = new S3Store({
 	format: "arn",
 });
 
-describe.runIf(isLocalstackRunning)("S3Store", () => {
+describe("S3Store", () => {
 	test("should write and read full payload", async () => {
 		const key = randomUUID();
 		mockKey.mockReturnValue(key);

@@ -35,6 +35,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.8.3",
+		"@testcontainers/localstack": "^10.10.4",
 		"@tsconfig/node20": "latest",
 		"@types/aws-lambda": "^8.10.140",
 		"@types/lodash.get": "^4.4.9",

@@ -44,11 +44,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Start LocalStack
-        uses: LocalStack/setup-localstack@v0.2.2
-        with:
-          image-tag: 'latest'
-          install-awslocal: 'true'
+      # - name: Start LocalStack
+      #   uses: LocalStack/setup-localstack@v0.2.2
+      #   with:
+      #     image-tag: 'latest'
+      #     install-awslocal: 'true'
 
       - name: Build
         run: pnpm build
