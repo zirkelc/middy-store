@@ -92,7 +92,7 @@ export function calculateByteSize(payload: any) {
 	if (typeof payload === "string") return Buffer.byteLength(payload, "utf8");
 
 	if (typeof payload === "object")
-		return Buffer.byteLength(JSON.stringify(payload));
+		return Buffer.byteLength(JSON.stringify(payload), "utf8");
 
 	throw new Error(`Unsupported payload type: ${typeof payload}`);
 }
