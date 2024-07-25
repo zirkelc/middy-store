@@ -28,13 +28,9 @@ export type Reference<TReference = any> = TReference;
 // https://lodash.com/docs/4.17.15#get
 export type Path = string;
 
-// TODO: add support for payload[]
-export type InputSelector<TInput> = Path | ((args: { input: TInput }) => any);
-export type InputReplacer<TInput> = Path | ((args: { input: TInput }) => any);
-
-// TODO: add support for payload[]
+// TODO build selector paths based on TInput like React Hook Forms
 export type OutputSelector<TInput, TOutput> = Path;
-export type OutputReplacer<TInput, TOutput> = Path;
+// export type OutputReplacer<TInput, TOutput> = Path;
 
 export const MaxOutputSize = {
 	/**

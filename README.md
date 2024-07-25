@@ -23,8 +23,8 @@ export const handler1 = middy()
 		})
 	)
 	.handler(async (input) => {
-		// return 6MB of random data as output
-		return randomBytes(1024 * 1024 * 6).toString('base64');
+		// output 1MB of random data as base64 encoded string
+		return randomBytes(1024 * 1024).toString('base64');
 	});
 
 // ./src/functions/handler2.ts
@@ -35,12 +35,10 @@ export const handler2 = middy()
 		})
 	)
 	.handler(async (input) => {
-		// input is the 6MB of random data
-		return console.log(input);
+		// input is the 1MB of random data
+		return console.log(`Size: ${Buffer.from(input, "base64").byteLength / 1024 / 1024} MB`,);
 	});
 
-// AWS Step Fucntions or other integration
-// ----------------------------------------
 
 // The output is now a reference to the stored payload in S3
 const output1 = await handler1({});
@@ -52,3 +50,19 @@ console.log(output);
 // Pass the output as input to the next Lambda
 const output2 = await handler2(output1);
 ```
+
+## What is a Store?
+In general, a Store is any service that allows you to write and read abriraty payloads like objects, for example Amazon S3 or other persistent storages. But also databases like DynamoDB can act as a Store. 
+The Store receives a payload from the Lambda function and stores it in a persistent storage and it loads the payload from the storage and returns it to the Lambda function. 
+
+`middy-store` interacts with a Store through a `Store` interface which every Store has to implement. 
+The interface defines the functions `canWrite` and `write` to store payloads, and `canRead` and `read` to laod payloads. 
+The `canWrite` and `canRead` act as guardrails to check if the Store can write or read a certain payload. 
+For example, the maximum item size in DynamoDB is 400KB, so if the payload is larger than that, `canWrite` should return `false`.
+
+The `write` function receives a payload, stores it it's persistent storage and returns a reference to the stored payload.
+The reference is a unique ID to identify the stored payload within the underlying service. 
+For example, in Amazon S3 the reference is the S3 URI in the format `s3://<bucket>/<...keys>` to the object in the bucket.
+Other Amazon services might use ARNs or other identifiers.
+
+The `read` function receives the reference to a stored payload, loads the payload from the persistent storage and returns it.
