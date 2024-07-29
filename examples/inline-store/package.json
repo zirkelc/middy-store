@@ -2,7 +2,6 @@
 	"name": "middy-store-example-base64",
 	"private": true,
 	"type": "module",
-	"main": "handler.ts",
 	"scripts": {
 		"start": "tsx handler"
 	},

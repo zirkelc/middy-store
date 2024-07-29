@@ -22,15 +22,7 @@ export type Resolveable<TResolved, TArgs extends any[] = []> =
 	| TResolved
 	| ((...args: TArgs) => TResolved);
 
-export type Payload<TPayload = any> = TPayload;
-export type Reference<TReference = any> = TReference;
-
-// https://lodash.com/docs/4.17.15#get
-export type Path = string;
-
-// TODO build selector paths based on TInput like React Hook Forms
-export type OutputSelector<TInput, TOutput> = Path;
-// export type OutputReplacer<TInput, TOutput> = Path;
+export type Selector<TObject = unknown> = string;
 
 export const MaxSizes = {
 	/**
@@ -58,26 +50,26 @@ export type StoreOptions = {
 	maxSize?: number;
 };
 
-export type StoreArgs<TPayload = unknown> = {
+export type StoreArgs<TPayload> = {
 	payload: TPayload;
 	byteSize: number;
 };
 
-export type LoadArgs<TReference = unknown> = {
+export type LoadArgs<TReference> = {
 	reference: TReference;
 };
 
 export interface StoreInterface<TPayload = unknown, TReference = unknown> {
 	name: string;
 	canLoad: (args: LoadArgs<unknown>) => boolean;
-	load: (args: LoadArgs<TReference | unknown>) => Promise<TPayload>;
+	load: (args: LoadArgs<TReference>) => Promise<TPayload>;
 	canStore: (args: StoreArgs<TPayload>) => boolean;
 	store: (args: StoreArgs<TPayload>) => Promise<TReference>;
 }
 
 // TODO add option to clone instead of mutate input/output
 export interface MiddyStoreOptions<TInput = unknown, TOutput = unknown> {
-	stores: Array<StoreInterface>;
+	stores: Array<StoreInterface<any, any>>;
 	loadOpts?: MiddyLoadOpts<TInput>;
 	storeOpts?: MiddyStoreOpts<TInput, TOutput>;
 	logger?: (...args: any[]) => void;
@@ -89,7 +81,8 @@ export interface MiddyLoadOpts<TInput> {
 	 * Specifies if the Store should load a payload if it finds a reference in the input.
 	 */
 	skip?: boolean;
-	// selector?: InputSelector<TInput>; // TODO
+
+	// selector?: Selector<TInput>; // TODO
 }
 
 export interface MiddyStoreOpts<TInput, TOutput> {
@@ -123,6 +116,7 @@ export interface MiddyStoreOpts<TInput, TOutput> {
 	 *
 	 * selector: ''; // selects the entire output as the payload
 	 * selector: 'a'; // selects the payload at the path 'a'
+	 * selector: 'a.b'; // selects the payload at the path 'a.b'
 	 * selector: 'a.b[0]'; // selects the payload at the path 'a.b[0]'
 	 * selector: 'a.b[*]'; // selects the payloads at the paths 'a.b[0], 'a.b[1]', 'a.b[2]', etc.
 	 * ```
@@ -130,7 +124,7 @@ export interface MiddyStoreOpts<TInput, TOutput> {
 	 * Note: If you use a selector that selects multiple payloads, make sure you configure your store
 	 * to generate unique keys for each payload. Otherwise, the store will overwrite the previous payload.
 	 */
-	selector?: OutputSelector<TInput, TOutput>;
+	selector?: Selector<TOutput>;
 
 	/**
 	 * Specifies the **byte size** at which the output payload should be saved in the store.
@@ -176,11 +170,6 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				return;
 			}
 
-			// // setting read to enable or disable the store
-			// // true or undefined are identical and will enable the store
-			// // false will disable the store
-			// const readOptions = opts.read === true || !opts.read ? {} : opts.read;
-
 			const { event: input, context } = request;
 
 			if (!isObject(input) || Object.keys(input).length === 0) {
@@ -196,13 +185,12 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 					source: input,
 					path: formatPath({ path, key: MIDDY_STORE }),
 				});
-				const readInput = {
-					input,
+				const loadArgs: LoadArgs<unknown> = {
 					reference,
 				};
 
 				// find a store that can load the reference
-				const store = stores.find((store) => store.canLoad(readInput));
+				const store = stores.find((store) => store.canLoad(loadArgs));
 				if (!store) {
 					if (passThrough) {
 						logger(`No store was found to load reference, passthrough input`);
@@ -218,7 +206,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				logger(`Found store "${store.name}" to load reference`);
 
 				// load the payload from the store
-				const payload = await store.load(readInput);
+				const payload = await store.load(loadArgs);
 
 				logger(`Loaded payload from store "${store.name}"`, {
 					input,
@@ -247,11 +235,6 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				return;
 			}
 
-			// // setting write will enable or disable the store
-			// // true or undefined are identical and will enable the store
-			// // false will disable the store
-			// const writeOptions =
-			// 	opts.write === true || opts.write === undefined ? {} : opts.write;
 			const selector = storeOpts?.selector ?? ROOT_SELECTOR;
 			const size = storeOpts?.size ?? MaxSizes.STEP_FUNCTIONS;
 
@@ -284,7 +267,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 
 				const payload = selectByPath({ source: output, path });
 
-				const storeOutput: StoreArgs = {
+				const storeArgs: StoreArgs<unknown> = {
 					payload,
 					byteSize: calculateByteSize(payload),
 				};
@@ -292,13 +275,13 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				logger(`Selected payload`, {
 					path,
 					payload,
-					byteSize: storeOutput.byteSize,
+					byteSize: storeArgs.byteSize,
 				});
 
 				// find a store that can store the payload
 				// if there are multiple stores, store the response in the first store that accepts the response
 				// if no store accepts the response, leave the response untouched
-				const store = stores.find((store) => store.canStore(storeOutput));
+				const store = stores.find((store) => store.canStore(storeArgs));
 				if (!store) {
 					if (passThrough) {
 						logger(`No store was found to save payload, passthrough output`);
@@ -312,8 +295,8 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				logger(`Found store "${store.name}" to save payload`);
 
 				// store the payload in the store
-				const reference: MiddyStore<any> = {
-					[MIDDY_STORE]: await store.store(storeOutput),
+				const reference: MiddyStore<unknown> = {
+					[MIDDY_STORE]: await store.store(storeArgs),
 				};
 
 				logger(`Saved payload in store "${store.name}"`);

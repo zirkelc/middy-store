@@ -4,7 +4,6 @@ import toPath from "lodash.topath";
 import type {
 	LoadArgs,
 	MiddyStore,
-	Path,
 	Resolveable,
 	StoreArgs,
 	StoreInterface,
@@ -96,7 +95,7 @@ export function calculateByteSize(payload: unknown) {
 }
 
 type FormatPathArgs = {
-	path: Path;
+	path: string;
 	key: string | number;
 };
 export function formatPath({ path, key }: FormatPathArgs): string {
@@ -113,7 +112,7 @@ export function formatPath({ path, key }: FormatPathArgs): string {
 
 type SelectByPathArgs = {
 	source: Record<string, unknown>;
-	path: Path;
+	path: string;
 };
 export function selectByPath({ source, path }: SelectByPathArgs): unknown {
 	const pathArray = toPath(path);
@@ -125,7 +124,7 @@ export function selectByPath({ source, path }: SelectByPathArgs): unknown {
 type ReplaceByPathArgs = {
 	source: Record<string, unknown>;
 	value: unknown;
-	path: Path;
+	path: string;
 };
 
 /**
@@ -146,12 +145,12 @@ export function replaceByPath({
 
 type GeneratePathsArgs = {
 	output: Record<string, unknown>;
-	selector: Path;
+	selector: string;
 };
 export function* generatePayloadPaths({
 	output,
 	selector,
-}: GeneratePathsArgs): Generator<Path> {
+}: GeneratePathsArgs): Generator<string> {
 	const isMultiPayload = selector.trim().endsWith("[*]");
 	const path = isMultiPayload ? selector.trim().slice(0, -3) : selector.trim();
 
@@ -185,12 +184,12 @@ export const getReference = <TReference = unknown>(
 
 type GenerateReferencePathsArgs = {
 	input: unknown;
-	path: Path;
+	path: string;
 };
 export function* generateReferencePaths({
 	input,
 	path,
-}: GenerateReferencePathsArgs): Generator<Path> {
+}: GenerateReferencePathsArgs): Generator<string> {
 	// Check if the result itself is null or not an object
 	if (!isObject(input)) return;
 

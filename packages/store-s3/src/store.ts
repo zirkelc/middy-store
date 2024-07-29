@@ -125,7 +125,7 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		return false;
 	}
 
-	async load(args: LoadArgs<S3Reference | unknown>): Promise<unknown> {
+	async load(args: LoadArgs<S3Reference>): Promise<unknown> {
 		this.#logger("Loading payload");
 
 		const client = new S3Client(this.#config);
@@ -141,7 +141,7 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		return payload;
 	}
 
-	canStore(args: StoreArgs): boolean {
+	canStore(args: StoreArgs<unknown>): boolean {
 		this.#logger("Checking if store can save output");
 
 		const { payload, byteSize } = args;
@@ -155,7 +155,7 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		return true;
 	}
 
-	public async store(args: StoreArgs): Promise<S3Reference> {
+	public async store(args: StoreArgs<unknown>): Promise<S3Reference> {
 		this.#logger("Writing payload");
 
 		const bucket = this.#bucket;

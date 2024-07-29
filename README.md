@@ -2,11 +2,18 @@
 
 `middy-store` is a middleware for Middy to automatically store and load payloads from and to a Store like Amazon S3.
 
+## Installation
+You will need [@middy/core](https://www.npmjs.com/package/@middy/core) to use `middy-store`.
+
+```sh
+npm install @middy/core middy-store middy-store-s3 
+```
+
 ## Motivation
 
 When working with AWS, there are certain limits to be aware of. For example, AWS Lambda has a payload limit of 6MB for synchronous invocations and 256KB for asynchronous invocations. AWS Step Functions allows for a maximum input or output size of 256KB of data as a UTF-8 encoded string. That means if you return large payloads from your Lambda, you need to check the size of your payload and save it temporarily in persistent storage like Amazon S3. Then you have to return the object URL or ARN to the payload in S3. The next Lambda has to check if there is a URL or ARN in the payload and load the payload from S3. This results in a lot of boilerplate code to check the size and store and load the payload, which has to be repeated in every Lambda. Even more problematic is if instead of saving the full output from a Lambda, you only want to save a part of the output to S3 and keep the rest intact. This is often teh case with Step Fucntions when some of the payload is used for the control flow, for example for `Choice` or `Map` states. The rpobem here is that the first Lambda saves a partial paylooad to S3 and the next Lambda has to load the partial payload from S3 and merge it with the rest of the payload. That means you have to make sur ethat the types are consistent across multiple functions. This is of course very error prone.
 
-# How it works
+## How it works
 
 `middy-store` is a middleware for Middy. It receievs the input for a Lambda function before the handler is called, and it receives the output after the handler has finished. Let's start with the output: `middy-store` receives the output from the handler function and checks the size of the entire payload. To calculate the size, it optionally strigifes the payload and uses `Buffer.byteLength()` to calculate the UTF-8 encoded size of the payload. If the size is larger than a certain threshold, the payload is stored in a Store like Amazon S3. The reference to the stored payload (e.g. S3 URL or ARN) is then returned as the output instead of the original payload. 
 
@@ -51,7 +58,7 @@ console.log(output1);
 const output2 = await handler2(output1);
 ```
 
-## What is a Store?
+### What is a Store?
 In general, a Store is any service that allows you to write and read abriraty objects, for example Amazon S3 or other persistent storages. But also databases like DynamoDB can act as a Store. 
 The Store receives a payload from the Lambda function, serialzes and stores it in a persistent storage. Or it loads the payload from the storage, deserializes and returns it to the Lambda function. 
 
@@ -85,7 +92,7 @@ The `load()` function receives the reference to a stored payload, loads the payl
 The payload will be deserialized according to the metadata that was stored alongside.
 For example, a JSON payload will be deserialized to a JavaScript object.
 
-## Single and Multiple Stores
+### Single and Multiple Stores
 Most of the time, you will only need one Store like Amazon S3 which can effectively store any payload. However, `middy-store` lets you work with multiple Stores at the same time. 
 This can be useful if you want to store different types of payloads in different Stores. For example, you might want to store large payloads in S3 and small payloads in DynamoDB. 
 
@@ -98,7 +105,7 @@ The first Store that returns `true` will be used to store the payload with the `
 
 Therefore, it is important to note that the order of the Stores in the array is important. 
 
-## Reference
+### Payload Reference
 When a payload is stored in a Store, `middy-store` will return a reference to the stored payload.
 The reference is a unique identifier to find the stored payload in the Store. 
 The value of the identifier depends on the Store and its configuration. For example, a S3 Store will S3 URIs in the format `s3://<bucket>/<...keys>` as reference to the payload.
@@ -114,7 +121,7 @@ The returned output from the handler function will contain the reference to the 
 `middy-store` embeds the reference in the output as a property with the key `"@middy-store"`.
 This allows `middy-store` to quickly find all references when the next Lambda function is called and load the payloads from the Store.
 
-## Select a Payload
+### Select a Payload
 By default, `middy-store` will store the entire output of the handler function as payload in the Store. 
 However, you can also select only a part of the output to be stored in the Store.
 This is useful for workflows like AWS Step Functions where you might need some of the payload for the control flow.
@@ -205,7 +212,7 @@ Each element will be replaced with the reference to the stored payload.
 }
 ```
 
-## Size Limit
+### Size Limit
 `middy-store` will calculate the size of the entire output returned from the handler function. 
 The size is calculated by stringifying the output, if it's not already a string, and calculating the UTF-8 encoded size of the string in bytes.
 It will then compare this size to configured size limit in bytes. If the output exceeds the limit, it will store the output or a part of it in the Store.
@@ -232,3 +239,8 @@ export const handler = middy()
 
 await handler({});
 ```
+
+## Packages
+
+- [`middy-store`](./packages/core/): This is the core package of `middy-store` and provides the middleware function `middyStore()` for Middy to use.
+- [`middy-store-s3`](./packages/store-s3/): This package provides a Store implementation for Amazon S3. It uses the `@aws-sdk/client-s3` to interact with S3.

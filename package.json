@@ -1,23 +1,8 @@
 {
 	"name": "middy-store-root",
 	"private": true,
-	"version": "1.0.0",
-	"description": "",
 	"packageManager": "pnpm@9.3.0",
 	"type": "module",
-	"module": "src/index.ts",
-	"exports": {
-		".": {
-			"import": {
-				"default": "./src/index.js",
-				"types": "./src/index.d.ts"
-			},
-			"require": {
-				"default": "./src/index.js",
-				"types": "./src/index.d.ts"
-			}
-		}
-	},
 	"scripts": {
 		"build": "turbo build --continue",
 		"test": "vitest run",
@@ -25,14 +10,7 @@
 		"lint": "biome check . --write --no-errors-on-unmatched",
 		"prepare": "husky"
 	},
-	"keywords": [],
-	"author": "",
-	"license": "ISC",
-	"dependencies": {
-		"@middy/core": "^5.4.3",
-		"lodash.get": "^4.4.2",
-		"lodash.set": "^4.3.2"
-	},
+	"dependencies": {},
 	"devDependencies": {
 		"@biomejs/biome": "^1.8.3",
 		"@testcontainers/localstack": "^10.10.4",

@@ -2,9 +2,10 @@
 	"name": "middy-store",
 	"version": "0.0.0",
 	"description": "",
-	"repository": "https://github.com/zirkelc/middy-store.git",
 	"type": "module",
-	"main": "./src/index.ts",
+	"engines": {
+		"node": ">=18"
+	},
 	"module": "./src/index.ts",
 	"exports": {
 		".": {
@@ -16,8 +17,7 @@
 	},
 	"files": ["dist"],
 	"publishConfig": {
-		"main": "./dist/index.js",
-		"module": "./dist/index.cjs",
+		"module": "./dist/index.cs",
 		"exports": {
 			".": {
 				"import": {
@@ -32,8 +32,13 @@
 		"build": "tsup ./src/index.ts --format esm --dts --clean"
 	},
 	"keywords": [],
-	"author": "",
-	"license": "ISC",
+	"author": "Chris Cook",
+	"repository": {
+		"type": "git",
+		"url": "github:zirkelc/middy-store",
+		"directory": "packages/core"
+	},
+	"license": "MIT",
 	"dependencies": {
 		"lodash.get": "^4.4.2",
 		"lodash.set": "^4.3.2",
@@ -44,5 +49,8 @@
 		"@types/lodash.get": "^4.4.9",
 		"@types/lodash.set": "^4.3.9",
 		"@types/lodash.topath": "^4.5.9"
+	},
+	"peerDependencies": {
+		"@middy/core": ">= 5.0.0"
 	}
 }

@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import middy from "@middy/core";
-import { type Context, Handler } from "aws-lambda";
+import type { Context } from "aws-lambda";
 import { middyStore } from "middy-store";
 import { S3Store } from "middy-store-s3";
 
@@ -24,7 +24,7 @@ const handler1 = middy()
 	)
 	.handler(async (input) => {
 		return {
-			random: randomBytes(1024 * 1024).toString("base64"),
+			random: randomBytes(1024 * 1024).toString("hex"),
 		};
 	});
 
@@ -42,7 +42,7 @@ const handler2 = middy()
 	)
 	.handler(async (input) => {
 		console.log(
-			`Size: ${Buffer.from(input.random, "base64").byteLength / 1024 / 1024} MB`,
+			`Size: ${Buffer.from(input.random, "hex").byteLength / 1024 / 1024} MB`,
 		);
 	});
 
