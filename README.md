@@ -4,7 +4,7 @@
 
 ## Motivation
 
-When working with AWS, tehre are certain limits to be aware of. For example, AWS Lambda has a payload limit of 6MB for synchronous invocations and 256KB for asynchronous invocations. AWS Step Functions allows for a maximum input or output size of 256KB of data as a UTF-8 encoded string. That means if you return large payloads from your Lambda, you need to check the size of your payload and save it temporarily in persistent storage like Amazon S3. Then you have to return the object URL or ARN to the payload in S3. The next Lambda has to check if there is a URL or ARN in the payload and load the payload from S3. This results in a lot of boilerplate code to check the size and store and load the payload, which has to be repeated in every Lambda. Even more problematic is if instead of saving the full output from a Lambda, you only want to save a part of the output to S3 and keep the rest intact. This is often teh case with Step Fucntions when some of the payload is used for the control flow, for example for `Choice` or `Map` states. The rpobem here is that the first Lambda saves a partial paylooad to S3 and the next Lambda has to load the partial payload from S3 and merge it with the rest of the payload. That means you have to make sur ethat the types are consistent across multiple functions. This is of course very error prone.
+When working with AWS, there are certain limits to be aware of. For example, AWS Lambda has a payload limit of 6MB for synchronous invocations and 256KB for asynchronous invocations. AWS Step Functions allows for a maximum input or output size of 256KB of data as a UTF-8 encoded string. That means if you return large payloads from your Lambda, you need to check the size of your payload and save it temporarily in persistent storage like Amazon S3. Then you have to return the object URL or ARN to the payload in S3. The next Lambda has to check if there is a URL or ARN in the payload and load the payload from S3. This results in a lot of boilerplate code to check the size and store and load the payload, which has to be repeated in every Lambda. Even more problematic is if instead of saving the full output from a Lambda, you only want to save a part of the output to S3 and keep the rest intact. This is often teh case with Step Fucntions when some of the payload is used for the control flow, for example for `Choice` or `Map` states. The rpobem here is that the first Lambda saves a partial paylooad to S3 and the next Lambda has to load the partial payload from S3 and merge it with the rest of the payload. That means you have to make sur ethat the types are consistent across multiple functions. This is of course very error prone.
 
 # How it works
 
@@ -39,30 +39,196 @@ export const handler2 = middy()
 		return console.log(`Size: ${Buffer.from(input, "base64").byteLength / 1024 / 1024} MB`,);
 	});
 
-
+// ./src/workflow.ts
 // The output is now a reference to the stored payload in S3
 const output1 = await handler1({});
 
-// Print the reference object
+// Print the returned reference
 // { "@middy-store": "s3://my-bucket/my-key"}
-console.log(output); 
+console.log(output1); 
 
 // Pass the output as input to the next Lambda
 const output2 = await handler2(output1);
 ```
 
 ## What is a Store?
-In general, a Store is any service that allows you to write and read abriraty payloads like objects, for example Amazon S3 or other persistent storages. But also databases like DynamoDB can act as a Store. 
-The Store receives a payload from the Lambda function and stores it in a persistent storage and it loads the payload from the storage and returns it to the Lambda function. 
+In general, a Store is any service that allows you to write and read abriraty objects, for example Amazon S3 or other persistent storages. But also databases like DynamoDB can act as a Store. 
+The Store receives a payload from the Lambda function, serialzes and stores it in a persistent storage. Or it loads the payload from the storage, deserializes and returns it to the Lambda function. 
 
-`middy-store` interacts with a Store through a `Store` interface which every Store has to implement. 
-The interface defines the functions `canWrite` and `write` to store payloads, and `canRead` and `read` to laod payloads. 
-The `canWrite` and `canRead` act as guardrails to check if the Store can write or read a certain payload. 
-For example, the maximum item size in DynamoDB is 400KB, so if the payload is larger than that, `canWrite` should return `false`.
+`middy-store` interacts with a Store through a `StoreInterface` interface which every Store has to implement. 
+The interface defines the functions `canStore()` and `store()` to store payloads, and `canLoad()` and `load()` to load payloads. 
 
-The `write` function receives a payload, stores it it's persistent storage and returns a reference to the stored payload.
+```ts
+interface StoreInterface<TPayload = unknown,TReference = unknown> {
+	name: string;
+	canLoad: (args: LoadArgs<unknown>) => boolean;
+	load: (args: LoadArgs<TReference | unknown>) => Promise<TPayload>;
+	canStore: (args: StoreArgs<TPayload>) => boolean;
+	store: (args: StoreArgs<TPayload>) => Promise<TReference>;
+}
+```
+
+The `canStore()` function acts as a guardrail to check if the Store can write a given payload. 
+It receives the payload and it's size and checks if the payload fits withing the allowed size limits of the Store.
+For example, a Store backed by DynamoDB has a maximum item size of 400KB, while a S3 Store has effectively no limit the object size.
+
+The `store()` function receives a payload, stores it it's persistent storage and returns a reference to the stored payload.
 The reference is a unique ID to identify the stored payload within the underlying service. 
 For example, in Amazon S3 the reference is the S3 URI in the format `s3://<bucket>/<...keys>` to the object in the bucket.
 Other Amazon services might use ARNs or other identifiers.
 
-The `read` function receives the reference to a stored payload, loads the payload from the persistent storage and returns it.
+The `canLoad()` function is like a filter to check if the Store can read a given reference.
+It receives the reference to a stored payload and checks if it points to a valid object in the persistent storage.
+For example, a S3 Store would check if the reference is a valid S3 URI while a DynamoDB Store would check if the reference is a valid ARN.
+
+The `load()` function receives the reference to a stored payload, loads the payload from the persistent storage and returns it.
+The payload will be deserialized according to the metadata that was stored alongside.
+For example, a JSON payload will be deserialized to a JavaScript object.
+
+## Single and Multiple Stores
+Most of the time, you will only need one Store like Amazon S3 which can effectively store any payload. However, `middy-store` lets you work with multiple Stores at the same time. 
+This can be useful if you want to store different types of payloads in different Stores. For example, you might want to store large payloads in S3 and small payloads in DynamoDB. 
+
+`middy-store` accepts an `Array<StoreInterface>` in the options to provide one or more Stores. 
+When `middy-store` runs before the handler function and founds a reference in the payload, it will iterate over the Stores call the `canLoad()` function with the reference on each Store.
+The first Store that returns `true` will be used to load the payload with the `load()` function.
+
+On the other hand, when `middy-store` runs after the handler function and the payload is larger than the maximum allowed size, it will iterate over the Stores and call the `canStore()` function on each Store.
+The first Store that returns `true` will be used to store the payload with the `store()` function.
+
+Therefore, it is important to note that the order of the Stores in the array is important. 
+
+## Reference
+When a payload is stored in a Store, `middy-store` will return a reference to the stored payload.
+The reference is a unique identifier to find the stored payload in the Store. 
+The value of the identifier depends on the Store and its configuration. For example, a S3 Store will S3 URIs in the format `s3://<bucket>/<...keys>` as reference to the payload.
+However, it can also be configured to return other formats like an object ARNs `arn:aws:s3:::<bucket>/<...keys>` or a structured object with the bucket and key.
+
+The returned output from the handler function will contain the reference to the stored payload:
+```ts
+{
+	"@middy-store": "s3://my-bucket/my-key"
+}
+```
+
+`middy-store` embeds the reference in the output as a property with the key `"@middy-store"`.
+This allows `middy-store` to quickly find all references when the next Lambda function is called and load the payloads from the Store.
+
+## Select a Payload
+By default, `middy-store` will store the entire output of the handler function as payload in the Store. 
+However, you can also select only a part of the output to be stored in the Store.
+This is useful for workflows like AWS Step Functions where you might need some of the payload for the control flow.
+
+`middy-store` accepts a `selector` property in its `storeOpts` options. The `selector` is a string path to the value in the output which should be stored in the Store. 
+
+Here's an example:
+
+```ts
+const output = {
+	a: {
+		b: ['foo', 'bar', 'baz'],
+	},
+};
+
+export const handler = middy()
+	.use(
+		middyStore({
+			stores: [new S3Store({ /* S3 options */ })],
+			storeOpts: {
+				selector: '', 					// select the entire output as payload
+				// selector: 'a'; 			// selects the payload at the path 'a'
+				// selector: 'a.b'; 		// selects the payload at the path 'a.b'
+				// selector: 'a.b[0]'; 	// selects the payload at the path 'a.b[0]'
+				// selector: 'a.b[*]'; 	// selects the payloads at the paths 'a.b[0], 'a.b[1]', 'a.b[2]', etc.
+			}
+		})
+	)
+	.handler(async () => output);
+
+await handler({});
+```
+
+The default selector is an empty string (or undefined) which selects the entire output as payload.
+In this case, `middy-store` will return an object with only one properties which is the reference to the stored payload.
+
+
+```ts
+// selector: ''
+{
+	"@middy-store": "s3://my-bucket/my-key"
+}
+```
+
+Selectors like `a`, `a.b` or `a.b[0]`, `middy-store` will select the value at the path and store only part of the output in the Store.
+The reference to the stored payload will be inserted at the path in the output, thereby replacing the original value.
+
+```ts
+// selector: 'a'
+{
+	a: {
+		"@middy-store": "s3://my-bucket/my-key"
+	}
+}
+// selector: 'a.b'
+{
+	a: {
+		b: {
+			"@middy-store": "s3://my-bucket/my-key"
+		}
+	}
+}
+// selector: 'a.b[0]'
+{
+	a: {
+		b: [
+			{ "@middy-store": "s3://my-bucket/my-key" }, 
+			'bar', 
+			'baz'
+		]
+	}
+}
+```
+
+A selector ending with `[*]` like `a.b[*]` act like an iterators. It will select the array at `a.b` and store each element in the array in the Store separetely.
+Each element will be replaced with the reference to the stored payload.
+
+```ts
+// selector: 'a.b[*]'
+{
+	a: {
+		b: [
+			{ "@middy-store": "s3://my-bucket/my-key" }, 
+			{ "@middy-store": "s3://my-bucket/my-key" }, 
+			{ "@middy-store": "s3://my-bucket/my-key" }
+		]
+	}
+}
+```
+
+## Size Limit
+`middy-store` will calculate the size of the entire output returned from the handler function. 
+The size is calculated by stringifying the output, if it's not already a string, and calculating the UTF-8 encoded size of the string in bytes.
+It will then compare this size to configured size limit in bytes. If the output exceeds the limit, it will store the output or a part of it in the Store.
+
+The size can be configured with the `size` property in the `storeOpts` options and must be a number.
+`middy-store` provides a `MaxSize` helper object with some predefined sizes for Lambda and Step Functions.
+If `size` is not specified, `middy-store` will use `MaxSize.STEP_FUNCTIONS` with 256KB as default size limit.
+
+```ts
+export const handler = middy()
+	.use(
+		middyStore({
+			stores: [new S3Store({ /* S3 options */ })],
+			storeOpts: {
+				size: MaxSize.STEP_FUNCTIONS, 	// 256KB
+				// size: MaxSize.LAMBDA_SYNC, 	// 6MB
+				// size: MaxSize.LAMBDA_ASYNC, 	// 256KB
+				// size: 1024 * 1024, 					// 1MB
+				// size: MaxSize.ALWAYS, 				// 0B
+			}
+		})
+	)
+	.handler(async () => output);
+
+await handler({});
+```

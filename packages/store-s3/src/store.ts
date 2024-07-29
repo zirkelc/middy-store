@@ -8,11 +8,10 @@ import {
 } from "@aws-sdk/client-s3";
 import { type S3UrlFormat, isS3Url, parseS3Url } from "amazon-s3-url";
 import {
-	type ReadInput,
-	type Resolveable,
-	type Store,
+	type LoadArgs,
+	type StoreArgs,
+	type StoreInterface,
 	type StoreOptions,
-	type WriteOutput,
 	isObject,
 	resolvableFn,
 } from "middy-store";
@@ -43,8 +42,7 @@ export interface S3ObjectReference {
 	region?: string;
 }
 
-export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
-	extends StoreOptions {
+export interface S3StoreOptions extends StoreOptions {
 	config: S3ClientConfig | (() => S3ClientConfig);
 	bucket: string | (() => string);
 	key?: string | (() => string);
@@ -54,9 +52,7 @@ export interface S3StoreOptions<TInput = unknown, TOutput = unknown>
 
 export const STORE_NAME = "s3" as const;
 
-export class S3Store<TInput = unknown, TOutput = unknown>
-	implements Store<TInput, TOutput, S3Reference>
-{
+export class S3Store implements StoreInterface<unknown, S3Reference> {
 	readonly name = STORE_NAME;
 
 	#config: S3ClientConfig;
@@ -68,7 +64,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 	#format: S3ReferenceFormat;
 	#logger: (...args: any[]) => void;
 
-	constructor(opts: S3StoreOptions<TInput, TOutput>) {
+	constructor(opts: S3StoreOptions) {
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#logger = opts.logger ?? (() => {});
 
@@ -103,16 +99,12 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 							: opts.format;
 	}
 
-	canRead(input: ReadInput<TInput, unknown>): boolean {
+	canLoad(args: LoadArgs<unknown>): boolean {
 		this.#logger("Checking if store can load input");
 
-		// input must be an object
-		if (!isObject(input)) return false;
+		if (!isObject(args)) return false;
 
-		// reference must be defined
-		if (input.reference === null || input.reference === undefined) return false;
-
-		const reference = input.reference as S3Reference;
+		const { reference } = args;
 
 		if (isS3ObjectArn(reference)) {
 			const { bucket: otherBucket } = parseS3ObjectArn(reference);
@@ -133,12 +125,13 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		return false;
 	}
 
-	async read(input: ReadInput<TInput, S3Reference>): Promise<unknown> {
+	async load(args: LoadArgs<S3Reference | unknown>): Promise<unknown> {
 		this.#logger("Loading payload");
 
 		const client = new S3Client(this.#config);
 
-		const { bucket, key } = parseS3Reference(input.reference);
+		const { reference } = args;
+		const { bucket, key } = parseS3Reference(reference);
 		const result = await client.send(
 			new GetObjectCommand({ Bucket: bucket, Key: key }),
 		);
@@ -148,24 +141,21 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 		return payload;
 	}
 
-	canWrite(output: WriteOutput<TInput, TOutput>): boolean {
+	canStore(args: StoreArgs): boolean {
 		this.#logger("Checking if store can save output");
 
-		// setting store options to false will disable loading completely
-		// if (this.#storeOptions === false) return false;
+		const { payload, byteSize } = args;
 
 		if (this.#maxSize === 0) return false;
-		if (output.byteSize > this.#maxSize) return false;
-		if (output.payload === null || output.payload === undefined) return false;
+		if (byteSize > this.#maxSize) return false;
+		if (payload === null || payload === undefined) return false;
 
 		this.#logger("Store can save");
 
 		return true;
 	}
 
-	public async write(
-		output: WriteOutput<TInput, TOutput>,
-	): Promise<S3Reference> {
+	public async store(args: StoreArgs): Promise<S3Reference> {
 		this.#logger("Writing payload");
 
 		const bucket = this.#bucket;
@@ -190,7 +180,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			);
 		}
 
-		const { payload } = output;
+		const { payload } = args;
 		this.#logger("Put object to bucket", { bucket, key });
 
 		const client = new S3Client(this.#config);
@@ -248,13 +238,7 @@ export class S3Store<TInput = unknown, TOutput = unknown>
 			return JSON.parse(payload) as unknown;
 		}
 
-		// if (ContentType?.startsWith('application/octet-stream')) {
-		// 	const payload = await Body?.transformToString('utf-8');
-		// 	const json = tryParseJSON(payload);
-		// 	if (json) return json as TPaylod;
-
-		// 	// content is not json, let the flow continue
-		// }
+		// TODO handle other content types like 'application/octet-stream'
 
 		throw new Error(`Unsupported payload type: ${ContentType}`);
 	}

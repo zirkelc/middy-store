@@ -13,7 +13,8 @@ import { LocalstackContainer } from "@testcontainers/localstack";
 import type { Context } from "aws-lambda";
 import { MIDDY_STORE, middyStore } from "middy-store";
 import { beforeAll, describe, expect, test, vi } from "vitest";
-import { type KeyMakerArgs, S3Store } from "../dist/index.js";
+import { S3Store } from "../dist/index.js";
+import { context, generateRandomString } from "./test-utils.js";
 
 const localstack = await new LocalstackContainer(
 	"localstack/localstack:3",
@@ -43,48 +44,13 @@ beforeAll(async () => {
 	}
 });
 
-const getObject = async (key: string): Promise<GetObjectOutput> => {
-	return await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-};
-
-function generateRandomString(byteLength: number) {
-	let random = "";
-	while (Buffer.byteLength(random, "utf8") !== byteLength) {
-		random = randomBytes(byteLength).toString("base64");
-		// Encode in URL format to avoid special characters and trim to approximate size
-		random = random.replace(/[+\/]/g, "").substring(0, byteLength);
-
-		// Adjust by cutting off extra bytes if necessary
-		while (Buffer.byteLength(random, "utf8") > byteLength) {
-			random = random.substring(0, random.length - 1);
-		}
-	}
-	return random;
-}
-
-const context: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionVersion: "$LATEST",
-	functionName: "foo-bar-function",
-	memoryLimitInMB: "128",
-	logGroupName: "/aws/lambda/foo-bar-function",
-	logStreamName: "2021/03/09/[$LATEST]abcdef123456abcdef123456abcdef123456",
-	invokedFunctionArn:
-		"arn:aws:lambda:eu-west-1:123456789012:function:foo-bar-function",
-	awsRequestId: "c6af9ac6-7b61-11e6-9a41-93e812345678",
-	getRemainingTimeInMillis: () => 60_000,
-	done: () => console.log("Done!"),
-	fail: () => console.log("Failed!"),
-	succeed: () => console.log("Succeeded!"),
-};
-
 const payload = {
 	foo: {
 		bar: [generateRandomString(128 * 1024), generateRandomString(128 * 1024)],
 	},
 };
 
-const mockKey = vi.fn<(args: KeyMakerArgs) => string>();
+const mockKey = vi.fn<() => string>();
 
 const s3Store = new S3Store({
 	config,
@@ -131,7 +97,7 @@ describe("S3Store", () => {
 
 		const store = middyStore({
 			stores: [s3Store],
-			write: {
+			storeOpts: {
 				selector: "foo.bar",
 			},
 		});
@@ -167,7 +133,7 @@ describe("S3Store", () => {
 
 		const store = middyStore({
 			stores: [s3Store],
-			write: {
+			storeOpts: {
 				selector: "foo.bar[0]",
 			},
 		});
@@ -202,11 +168,12 @@ describe("S3Store", () => {
 
 	test("should write and read multiple payloads at foo.bar[*]", async () => {
 		const key = randomUUID();
-		mockKey.mockImplementation((args) => `${key}-${args.index}`);
+		let index = 0;
+		mockKey.mockImplementation(() => `${key}-${index++}`);
 
 		const store = middyStore({
 			stores: [s3Store],
-			write: {
+			storeOpts: {
 				selector: "foo.bar[*]",
 			},
 		});

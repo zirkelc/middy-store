@@ -32,7 +32,7 @@ export type Path = string;
 export type OutputSelector<TInput, TOutput> = Path;
 // export type OutputReplacer<TInput, TOutput> = Path;
 
-export const MaxOutputSize = {
+export const MaxSizes = {
 	/**
 	 * Always write the output to the store.
 	 */
@@ -41,87 +41,63 @@ export const MaxOutputSize = {
 	 * The maximum size for Step Functions payloads is 256KB.
 	 * @see https://docs.aws.amazon.com/step-functions/latest/dg/limits-overview.html
 	 */
-	STEP_FUNCTIONS: 256 * 1024, // 256KB
+	STEP_FUNCTIONS: 256 * 1024 * 1024, // 256KB
 	/**
 	 * The maximum size for synchronous Lambda invocations is 6MB.
 	 * @see https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html
 	 */
-	LAMBDA_SYNC: 6 * 1024 * 1024, // 6MB,
+	LAMBDA_SYNC: 6 * 1024 * 1024 * 1024, // 6MB,
 	/**
 	 * The maximum size for asynchronous Lambda payloads is 256KB.
 	 * @see https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html
 	 */
-	LAMBDA_ASYNC: 256 * 1024, // 256KB,
+	LAMBDA_ASYNC: 256 * 1024 * 1024, // 256KB,
 };
-
-export type OutputSize<TInput, TOutput> =
-	| number
-	| ((args: { input: TInput; output: TOutput }) => number);
 
 export type StoreOptions = {
 	maxSize?: number;
 };
 
-export type WriteOutput<TInput = unknown, TOutput = unknown> = {
-	input: TInput;
-	output: TOutput;
-	payload: any;
+export type StoreArgs<TPayload = unknown> = {
+	payload: TPayload;
 	byteSize: number;
-	index: number; // if there are multiple payloads
 };
 
-export type ReadInput<TInput = unknown, TReference = unknown> = {
-	input: TInput;
+export type LoadArgs<TReference = unknown> = {
 	reference: TReference;
 };
 
-export interface Store<
-	TInput = unknown,
-	TOutput = unknown,
-	TReference = unknown,
-> extends ReadableStore<TInput, TOutput, TReference>,
-		WritableStore<TInput, TOutput, TReference> {
+export interface StoreInterface<TPayload = unknown, TReference = unknown> {
 	name: string;
-}
-
-export interface ReadableStore<
-	TInput = unknown,
-	TOutput = unknown,
-	TReference = unknown,
-> {
-	name: string;
-	canRead: (input: ReadInput<TInput, TReference | unknown>) => boolean;
-	read: (input: ReadInput<TInput, TReference>) => Promise<Payload>;
-}
-
-export interface WritableStore<
-	TInput = unknown,
-	TOutput = unknown,
-	TReference = unknown,
-> {
-	name: string;
-	canWrite: (output: WriteOutput<TInput, TOutput>) => boolean;
-	write: (output: WriteOutput<TInput, TOutput>) => Promise<TReference>;
+	canLoad: (args: LoadArgs<unknown>) => boolean;
+	load: (args: LoadArgs<TReference | unknown>) => Promise<TPayload>;
+	canStore: (args: StoreArgs<TPayload>) => boolean;
+	store: (args: StoreArgs<TPayload>) => Promise<TReference>;
 }
 
 // TODO add option to clone instead of mutate input/output
 export interface MiddyStoreOptions<TInput = unknown, TOutput = unknown> {
-	stores: Array<
-		| Store<TInput, TOutput>
-		| ReadableStore<TInput, TOutput>
-		| WritableStore<TInput, TOutput>
-	>;
-	read?: boolean | ReadStoreOptions<TInput>;
-	write?: boolean | WriteStoreOptions<TInput, TOutput>;
+	stores: Array<StoreInterface>;
+	loadOpts?: MiddyLoadOpts<TInput>;
+	storeOpts?: MiddyStoreOpts<TInput, TOutput>;
 	logger?: (...args: any[]) => void;
 	passThrough?: boolean;
 }
 
-export interface ReadStoreOptions<TInput> {
+export interface MiddyLoadOpts<TInput> {
+	/**
+	 * Specifies if the Store should load a payload if it finds a reference in the input.
+	 */
+	skip?: boolean;
 	// selector?: InputSelector<TInput>; // TODO
 }
 
-export interface WriteStoreOptions<TInput, TOutput> {
+export interface MiddyStoreOpts<TInput, TOutput> {
+	/**
+	 * Specifies if the Store should store a payload if it exceeds the maximum allowed size.
+	 */
+	skip?: boolean;
+
 	/**
 	 * Selects the payload that should be saved in the store.
 	 *
@@ -141,7 +117,7 @@ export interface WriteStoreOptions<TInput, TOutput> {
 	 * ```
 	 * const payload = {
 	 * 	a: {
-	 * 		b: [{ foo: 'foo' }, { bar: 'bar }, { baz: 'baz' }],
+	 * 		b: [{ foo: 'foo' }, { bar: 'bar' }, { baz: 'baz' }],
 	 * 	},
 	 * };
 	 *
@@ -157,12 +133,12 @@ export interface WriteStoreOptions<TInput, TOutput> {
 	selector?: OutputSelector<TInput, TOutput>;
 
 	/**
-	 * Specifies the size at which the output payload should be saved in the store.
+	 * Specifies the **byte size** at which the output payload should be saved in the store.
 	 * If the output payload exceeds the specified size, it will be saved in the store.
 	 * If the output payload is smaller than the specified size, it will be left untouched.
 	 * If the output payload should always be saved in the store, set the size to 0.
 	 */
-	size?: OutputSize<TInput, TOutput>;
+	size?: number;
 }
 
 const ROOT_SELECTOR = "";
@@ -188,22 +164,22 @@ const DUMMY_LOGGER = (...args: any[]) => {};
 export const middyStore = <TInput = unknown, TOutput = unknown>(
 	opts: MiddyStoreOptions<TInput, TOutput>,
 ): MiddlewareObj<TInput, TOutput> => {
-	const { stores, passThrough } = opts;
+	const { stores, loadOpts, storeOpts, passThrough } = opts;
 	const logger = opts.logger ?? DUMMY_LOGGER;
 
 	return {
 		// onReadInput
 		before: async (request) => {
 			// setting read to false will skip the store
-			if (opts.read === false) {
-				logger(`Read is disabled, skipping store`);
+			if (loadOpts?.skip) {
+				logger(`Loading is disabled, skipping Store`);
 				return;
 			}
 
-			// setting read to enable or disable the store
-			// true or undefined are identical and will enable the store
-			// false will disable the store
-			const readOptions = opts.read === true || !opts.read ? {} : opts.read;
+			// // setting read to enable or disable the store
+			// // true or undefined are identical and will enable the store
+			// // false will disable the store
+			// const readOptions = opts.read === true || !opts.read ? {} : opts.read;
 
 			const { event: input, context } = request;
 
@@ -216,17 +192,17 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 			for (const path of generateReferencePaths({ input, path: "" })) {
 				logger(`Process reference at ${path}`);
 
-				const reference = selectByPath(input, formatPath(path, MIDDY_STORE));
+				const reference = selectByPath({
+					source: input,
+					path: formatPath({ path, key: MIDDY_STORE }),
+				});
 				const readInput = {
 					input,
 					reference,
 				};
 
 				// find a store that can load the reference
-				const store = stores.find(
-					(store): store is ReadableStore =>
-						"canRead" in store && "read" in store && store.canRead(readInput),
-				);
+				const store = stores.find((store) => store.canLoad(readInput));
 				if (!store) {
 					if (passThrough) {
 						logger(`No store was found to load reference, passthrough input`);
@@ -242,7 +218,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				logger(`Found store "${store.name}" to load reference`);
 
 				// load the payload from the store
-				const payload = await store.read(readInput);
+				const payload = await store.load(readInput);
 
 				logger(`Loaded payload from store "${store.name}"`, {
 					input,
@@ -251,7 +227,11 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				});
 
 				// replace the reference with the payload
-				request.event = replaceByPath(input, payload, path);
+				request.event = replaceByPath({
+					source: input,
+					value: payload,
+					path,
+				}) as TInput;
 
 				logger(`Replaced reference with payload`, { path, payload });
 
@@ -262,20 +242,18 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 		// onWriteOutput
 		after: async (request) => {
 			// setting write to false will skip the store
-			if (opts.write === false) {
-				logger(`Write is disabled, skipping store`);
+			if (storeOpts?.skip) {
+				logger(`Storing is disabled, skipping Store`);
 				return;
 			}
 
-			// setting write will enable or disable the store
-			// true or undefined are identical and will enable the store
-			// false will disable the store
-			const writeOptions =
-				opts.write === true || opts.write === undefined ? {} : opts.write;
-			const selector = writeOptions.selector ?? ROOT_SELECTOR;
-			const size = resolvableFn(
-				writeOptions.size ?? MaxOutputSize.STEP_FUNCTIONS,
-			);
+			// // setting write will enable or disable the store
+			// // true or undefined are identical and will enable the store
+			// // false will disable the store
+			// const writeOptions =
+			// 	opts.write === true || opts.write === undefined ? {} : opts.write;
+			const selector = storeOpts?.selector ?? ROOT_SELECTOR;
+			const size = storeOpts?.size ?? MaxSizes.STEP_FUNCTIONS;
 
 			const { response: output, event: input } = request;
 
@@ -288,31 +266,27 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 			// if it does, store the response in the store
 			// if it doesn't, leave the response untouched
 			// if maxSize is 0, always store the response in the store
-			const maxSize = size({ input, output });
 			const byteSize = calculateByteSize(output);
-			if (maxSize > 0 && byteSize < maxSize) {
+			if (size > 0 && byteSize < size) {
 				logger(
-					`Output size of ${byteSize} bytes is less than max size of ${maxSize}, skipping store`,
+					`Output size of ${byteSize} bytes is less than ${size} bytes, skipping store`,
 				);
 				return;
 			}
 
 			logger(
-				`Output size of ${byteSize} bytes exceeds max size of ${maxSize} bytes, save in store`,
+				`Output size of ${byteSize} bytes is greater than ${size} bytes, save in store`,
 			);
 
 			let index = 0;
 			for (const path of generatePayloadPaths({ output, selector })) {
 				logger(`Process payload at ${path}`);
 
-				const payload = selectByPath(output, path);
+				const payload = selectByPath({ source: output, path });
 
-				const storeOutput: WriteOutput<TInput, TOutput> = {
-					input,
-					output,
+				const storeOutput: StoreArgs = {
 					payload,
 					byteSize: calculateByteSize(payload),
-					index,
 				};
 
 				logger(`Selected payload`, {
@@ -324,12 +298,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				// find a store that can store the payload
 				// if there are multiple stores, store the response in the first store that accepts the response
 				// if no store accepts the response, leave the response untouched
-				const store = stores.find(
-					(store): store is WritableStore =>
-						"canWrite" in store &&
-						"write" in store &&
-						store.canWrite(storeOutput),
-				);
+				const store = stores.find((store) => store.canStore(storeOutput));
 				if (!store) {
 					if (passThrough) {
 						logger(`No store was found to save payload, passthrough output`);
@@ -344,13 +313,17 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 
 				// store the payload in the store
 				const reference: MiddyStore<any> = {
-					[MIDDY_STORE]: await store.write(storeOutput),
+					[MIDDY_STORE]: await store.store(storeOutput),
 				};
 
 				logger(`Saved payload in store "${store.name}"`);
 
 				// replace the response with a reference to the stored response
-				request.response = replaceByPath(output, reference, path);
+				request.response = replaceByPath({
+					source: output,
+					value: reference,
+					path,
+				}) as TOutput;
 
 				logger(`Replaced payload with reference`, {
 					reference,

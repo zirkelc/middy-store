@@ -2,21 +2,19 @@ import get from "lodash.get";
 import set from "lodash.set";
 import toPath from "lodash.topath";
 import type {
+	LoadArgs,
 	MiddyStore,
 	Path,
-	ReadInput,
-	ReadableStore,
 	Resolveable,
-	Store,
-	WritableStore,
-	WriteOutput,
+	StoreArgs,
+	StoreInterface,
 } from "./store.js";
 import { MIDDY_STORE } from "./store.js";
 
 /**
  * Returns true if the value is an object and not null.
  */
-export function isObject(value: unknown): value is Record<string, any> {
+export function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
@@ -88,7 +86,7 @@ export function tryStringifyJSON(object: unknown): string | false {
  * If the payload is a string, it returns the byte length of the string.
  * If the payload is an object, it stringifies the object and returns the byte length of the JSON string.
  */
-export function calculateByteSize(payload: any) {
+export function calculateByteSize(payload: unknown) {
 	if (typeof payload === "string") return Buffer.byteLength(payload, "utf8");
 
 	if (typeof payload === "object")
@@ -97,7 +95,11 @@ export function calculateByteSize(payload: any) {
 	throw new Error(`Unsupported payload type: ${typeof payload}`);
 }
 
-export function formatPath(path: Path, key: string | number): string {
+type FormatPathArgs = {
+	path: Path;
+	key: string | number;
+};
+export function formatPath({ path, key }: FormatPathArgs): string {
 	let newPath = path.trim();
 
 	if (typeof key === "number") {
@@ -109,23 +111,33 @@ export function formatPath(path: Path, key: string | number): string {
 	return newPath;
 }
 
-export function selectByPath(source: Record<string, any>, path: Path): any {
+type SelectByPathArgs = {
+	source: Record<string, unknown>;
+	path: Path;
+};
+export function selectByPath({ source, path }: SelectByPathArgs): unknown {
 	const pathArray = toPath(path);
 	const value = pathArray.length === 0 ? source : get(source, pathArray);
 
 	return value;
 }
 
+type ReplaceByPathArgs = {
+	source: Record<string, unknown>;
+	value: unknown;
+	path: Path;
+};
+
 /**
  * Replaces the value at the given `path` in the `source` object with the new `value`.
  * The `source` object is mutated and returned.
  * If the `path` is empty, it returns the new `value`.
  */
-export function replaceByPath(
-	source: Record<string, any>,
-	value: Record<string, any>,
-	path: Path,
-): any {
+export function replaceByPath({
+	source,
+	value,
+	path,
+}: ReplaceByPathArgs): unknown {
 	const pathArray = toPath(path);
 
 	// TODO option to clone instead of mutate?
@@ -133,7 +145,7 @@ export function replaceByPath(
 }
 
 type GeneratePathsArgs = {
-	output: Record<string, any>;
+	output: Record<string, unknown>;
 	selector: Path;
 };
 export function* generatePayloadPaths({
@@ -146,12 +158,12 @@ export function* generatePayloadPaths({
 	const payload = path.length === 0 ? output : get(output, path);
 
 	if (isMultiPayload && Array.isArray(payload)) {
-		for (let i = 0; i < payload.length; i++) {
+		for (let index = 0; index < payload.length; index++) {
 			// if the item is a reference, we skip it
 			// this could happen if the handler is called multiple times and adds payload to the same path
-			if (hasReference(payload[i])) continue;
+			if (hasReference(payload[index])) continue;
 
-			const itemPath = formatPath(path, i);
+			const itemPath = formatPath({ path, key: index });
 			yield itemPath;
 		}
 	} else {
@@ -159,20 +171,20 @@ export function* generatePayloadPaths({
 	}
 }
 
-export const hasReference = <TReference = any>(
+export const hasReference = <TReference = unknown>(
 	input: unknown,
 ): input is MiddyStore<TReference> => {
 	return isObject(input) && MIDDY_STORE in input;
 };
 
-export const getReference = <TReference = any>(
+export const getReference = <TReference = unknown>(
 	input: unknown,
 ): TReference | undefined => {
-	return hasReference(input) ? input[MIDDY_STORE] : undefined;
+	return hasReference<TReference>(input) ? input[MIDDY_STORE] : undefined;
 };
 
 type GenerateReferencePathsArgs = {
-	input: Record<string, any>;
+	input: unknown;
 	path: Path;
 };
 export function* generateReferencePaths({
@@ -180,7 +192,7 @@ export function* generateReferencePaths({
 	path,
 }: GenerateReferencePathsArgs): Generator<Path> {
 	// Check if the result itself is null or not an object
-	if (input === null || typeof input !== "object") return;
+	if (!isObject(input)) return;
 
 	// Check for the reference in the current level of the object
 	if (hasReference(input)) {
@@ -188,15 +200,13 @@ export function* generateReferencePaths({
 	}
 
 	// Iterate through the object recursively to find all references
-	for (const key in input) {
-		if (Object.hasOwn(input, key)) {
-			if (input[key] === null || typeof input[key] !== "object") continue;
+	for (const key of Object.keys(input)) {
+		const nextInput = (input as Record<string, unknown>)[key];
+		if (nextInput === null || typeof nextInput !== "object") continue;
 
-			// const nextPath = path.concat(key); // Prepare the next path
-			const nextPath = formatPath(path, key);
+		const nextPath = formatPath({ path, key });
 
-			// Recursively search for references in the next level of the object
-			yield* generateReferencePaths({ input: input[key], path: nextPath });
-		}
+		// Recursively search for references in the next level of the object
+		yield* generateReferencePaths({ input: nextInput, path: nextPath });
 	}
 }

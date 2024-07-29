@@ -32,7 +32,7 @@ export const isS3Object = (obj: unknown): obj is S3Object => {
 	);
 };
 
-export const parseS3Reference = (reference: S3Reference): S3Object => {
+export const parseS3Reference = (reference: unknown): S3Object => {
 	if (isS3Object(reference)) return reference;
 	if (isS3ObjectArn(reference)) return parseS3ObjectArn(reference);
 	if (isS3Url(reference)) return parseS3Url(reference);

@@ -5,7 +5,7 @@ import {
 	type PutObjectRequest,
 	S3Client,
 } from "@aws-sdk/client-s3";
-import type { ReadInput, WriteOutput } from "middy-store";
+import type { LoadArgs, StoreArgs } from "middy-store";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
 	type S3ObjectReference,
@@ -44,17 +44,13 @@ const mockPayload = {
 	foo: "bar",
 };
 
-const mockLoadInput: ReadInput<typeof mockPayloadWithReference, S3Reference> = {
-	input: mockPayloadWithReference,
+const mockLoadInput: LoadArgs<S3Reference> = {
 	reference: mockObjectReference,
 };
 
-const mockStoreOutput: WriteOutput<typeof mockPayload, typeof mockPayload> = {
-	input: mockPayload,
-	output: mockPayload,
+const mockStoreOutput: StoreArgs<typeof mockPayload> = {
 	payload: mockPayload,
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
-	index: 0,
 };
 
 beforeAll(() => {
@@ -67,7 +63,7 @@ describe("S3Store.canLoad", () => {
 	test("should return true for payload", async () => {
 		const input = mockLoadInput;
 
-		const output = s3Store.canRead(input);
+		const output = s3Store.canLoad(input);
 
 		expect(output).toBe(true);
 	});
@@ -80,7 +76,7 @@ describe("S3Store.canLoad", () => {
 			reference: { ...mockObjectReference, bucket },
 		};
 
-		const output = s3Store.canRead(input);
+		const output = s3Store.canLoad(input);
 
 		expect(output).toBe(true);
 	});
@@ -93,7 +89,7 @@ describe("S3Store.canLoad", () => {
 			reference: { ...mockObjectReference, bucket },
 		};
 
-		const output = s3Store.canRead(input);
+		const output = s3Store.canLoad(input);
 
 		expect(output).toBe(false);
 	});
@@ -106,7 +102,7 @@ describe("S3Store.canLoad", () => {
 				reference: { ...mockObjectReference, key },
 			};
 
-			const output = s3Store.canRead(input);
+			const output = s3Store.canLoad(input);
 
 			expect(output).toBe(true);
 		},
@@ -133,7 +129,7 @@ describe("S3Store.canLoad", () => {
 			},
 		},
 	])("should return false for reference: %s", async (input) => {
-		const output = s3Store.canRead(input as any);
+		const output = s3Store.canLoad(input as any);
 
 		expect(output).toBe(false);
 	});
@@ -161,7 +157,7 @@ describe("S3Store.load", () => {
 		const spy = mockClient(payload, "text/plain");
 		const input = mockLoadInput;
 
-		const output = await s3Store.read(input);
+		const output = await s3Store.load(input);
 
 		expect(output).toEqual(payload);
 		expect(spy).toHaveBeenCalled();
@@ -178,7 +174,7 @@ describe("S3Store.load", () => {
 		const spy = mockClient(JSON.stringify(payload), "application/json");
 		const input = mockLoadInput;
 
-		const output = await s3Store.read(input);
+		const output = await s3Store.load(input);
 
 		expect(output).toEqual(payload);
 		expect(spy).toHaveBeenCalled();
@@ -195,7 +191,7 @@ describe("S3Store.load", () => {
 		const spy = mockClient(JSON.stringify(payload), "application/json");
 		const input = { ...mockLoadInput, reference: mockArnReference };
 
-		const output = await s3Store.read(input);
+		const output = await s3Store.load(input);
 
 		expect(output).toEqual(payload);
 	});
@@ -205,7 +201,7 @@ describe("S3Store.load", () => {
 		const spy = mockClient(JSON.stringify(payload), "application/json");
 		const input = { ...mockLoadInput, reference: mockUrlReference };
 
-		const output = await s3Store.read(input);
+		const output = await s3Store.load(input);
 
 		expect(output).toEqual(payload);
 	});
@@ -215,7 +211,7 @@ describe("S3Store.load", () => {
 		const spy = mockClient(JSON.stringify(payload), "application/json");
 		const input = { ...mockLoadInput, reference: mockObjectReference };
 
-		const output = await s3Store.read(input);
+		const output = await s3Store.load(input);
 
 		expect(output).toEqual(payload);
 	});
@@ -225,7 +221,7 @@ describe("S3Store.load", () => {
 		const spy = mockClient(JSON.stringify(payload), "application/random");
 		const input = mockLoadInput;
 
-		const output = s3Store.read(input);
+		const output = s3Store.load(input);
 
 		await expect(output).rejects.toThrowError();
 		expect(spy).toHaveBeenCalled();
@@ -245,7 +241,7 @@ describe("S3Store.canStore", () => {
 		"should return true for payload type: %s",
 		async (payload) => {
 			const input = { ...mockStoreOutput, payload };
-			const output = s3Store.canWrite(input);
+			const output = s3Store.canStore(input);
 			expect(output).toBe(true);
 		},
 	);
@@ -254,7 +250,7 @@ describe("S3Store.canStore", () => {
 		"should return false for payload type: %s",
 		async (payload) => {
 			const input = { ...mockStoreOutput, payload };
-			const output = s3Store.canWrite(input);
+			const output = s3Store.canStore(input);
 			expect(output).toBe(false);
 		},
 	);
@@ -263,7 +259,7 @@ describe("S3Store.canStore", () => {
 		"should return true for options.maxSize > payload size: %s",
 		async (byteSize) => {
 			const input = { ...mockStoreOutput, byteSize };
-			const output = s3Store.canWrite(input);
+			const output = s3Store.canStore(input);
 			expect(output).toBe(true);
 		},
 	);
@@ -274,7 +270,7 @@ describe("S3Store.canStore", () => {
 			const s3Store = new S3Store({ config, bucket, key, maxSize: 0 });
 
 			const input = { ...mockStoreOutput, byteSize };
-			const output = s3Store.canWrite(input);
+			const output = s3Store.canStore(input);
 			expect(output).toBe(false);
 		},
 	);
@@ -286,7 +282,7 @@ describe("S3Store.canStore", () => {
 
 			const input = mockStoreOutput;
 
-			expect(() => s3Store.canWrite(input)).toThrowError();
+			expect(() => s3Store.canStore(input)).toThrowError();
 		},
 	);
 
@@ -297,7 +293,7 @@ describe("S3Store.canStore", () => {
 
 			const input = mockStoreOutput;
 
-			expect(() => s3Store.canWrite(input)).toThrowError();
+			expect(() => s3Store.canStore(input)).toThrowError();
 		},
 	);
 });
@@ -315,7 +311,7 @@ describe("S3Store.store", () => {
 		const payload = "foo";
 		const input = { ...mockStoreOutput, payload };
 
-		const output = await s3Store.write(input);
+		const output = await s3Store.store(input);
 
 		expect(output).toEqual(mockUrlReference);
 		expect(spy).toHaveBeenCalled();
@@ -334,7 +330,7 @@ describe("S3Store.store", () => {
 		const payload = { foo: "bar" };
 		const input = { ...mockStoreOutput, payload };
 
-		const output = await s3Store.write(input);
+		const output = await s3Store.store(input);
 
 		expect(output).toEqual(mockUrlReference);
 		expect(spy).toHaveBeenCalled();
@@ -354,7 +350,7 @@ describe("S3Store.store", () => {
 			const spy = mockClient();
 			const input = { ...mockStoreOutput, payload };
 
-			const output = s3Store.write(input);
+			const output = s3Store.store(input);
 
 			await expect(output).rejects.toThrowError();
 			expect(spy).not.toHaveBeenCalled();
@@ -372,7 +368,7 @@ describe("S3Store.store", () => {
 		const s3Store = new S3Store({ config, bucket, key, format: "object" });
 		const input = mockStoreOutput;
 
-		const output = await s3Store.write(input);
+		const output = await s3Store.store(input);
 
 		expect(spy).toHaveBeenCalled();
 
@@ -402,7 +398,7 @@ describe("S3Store.store", () => {
 			const s3Store = new S3Store({ config, bucket, key, format });
 			const input = mockStoreOutput;
 
-			const output = await s3Store.write(input);
+			const output = await s3Store.store(input);
 
 			expect(spy).toHaveBeenCalled();
 			expect(output).toEqual(reference);

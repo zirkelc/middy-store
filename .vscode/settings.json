@@ -2,5 +2,10 @@
 	"files.associations": {
 		"turbo.js": "jsonc"
 	},
-	"typescript.tsdk": "node_modules/typescript/lib"
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"editor.formatOnSave": true,
+	"editor.codeActionsOnSave": {
+		"quickfix.biome": "explicit"
+		// "source.organizeImports.biome": "explicit"
+	}
 }

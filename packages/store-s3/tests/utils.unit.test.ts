@@ -143,14 +143,4 @@ describe("formatS3Reference", () => {
 			formatS3Reference(obj, { type: "url", format: "s3-global-path" }),
 		).toBe(`s3://${bucket}/${key}`);
 	});
-
-	// test.each([
-	// 	...nonStringValues,
-	// 	{ bucket: "my-bucket" },
-	// 	{ key: "my-key" },
-	// 	{ bucket: "my-bucket", key: "my-key", extra: "extra" },
-	// 	{ type: "invalid" },
-	// ])("should throw an error for an invalid reference format: %s", (format) => {
-	// 	expect(() => formatS3Reference({ bucket: "my-bucket", key: "my-key" }, format)).toThrowError();
-	// });
 });
