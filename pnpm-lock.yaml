@@ -68,13 +68,6 @@ importers:
       middy-store:
         specifier: workspace:*
         version: link:../../packages/core
-      middy-store-base64:
-        specifier: workspace:*
-        version: link:../../packages/store-base64
-    devDependencies:
-      '@types/aws-lambda':
-        specifier: ^8.10.133
-        version: 8.10.141
 
   examples/simple-s3-store:
     dependencies:
@@ -143,12 +136,6 @@ importers:
       '@types/lodash.topath':
         specifier: ^4.5.9
         version: 4.5.9
-
-  packages/store-base64:
-    dependencies:
-      middy-store:
-        specifier: workspace:*
-        version: link:../core
 
   packages/store-s3:
     dependencies:
