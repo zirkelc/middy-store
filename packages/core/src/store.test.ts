@@ -4,11 +4,11 @@ import set from "lodash.set";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
 	type LoadArgs,
-	MiddyLoadOpts,
+	LoadOptions,
 	type MiddyStoreOptions,
-	MiddyStoreOpts,
 	type StoreArgs,
 	type StoreInterface,
+	StoreOptions,
 	middyStore,
 	// middyStore,
 } from "./store.js";

@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { type S3Object, formatS3Url, isS3Url, parseS3Url } from "amazon-s3-url";
+import {
+	type S3Object,
+	type S3UrlFormat,
+	formatS3Url,
+	isS3Url,
+	parseS3Url,
+} from "amazon-s3-url";
 import {
 	type S3Reference,
 	type S3ReferenceFormat,
@@ -44,9 +50,12 @@ export const formatS3Reference = (
 	obj: S3Object,
 	format: S3ReferenceFormat,
 ): S3Reference => {
-	if (format?.type === "object") return { ...obj, store: STORE_NAME };
-	if (format?.type === "arn") return formatS3ObjectArn(obj.bucket, obj.key);
-	if (format?.type === "url") return formatS3Url(obj, format.format);
+	if (format === "object") return { ...obj, store: STORE_NAME };
+	if (format === "arn") return formatS3ObjectArn(obj.bucket, obj.key);
+	if (format.startsWith("url")) {
+		const s3UrlFormat = format.slice(4) as S3UrlFormat;
+		return formatS3Url(obj, s3UrlFormat);
+	}
 
 	throw new Error(`Invalid reference format: ${format}`);
 };

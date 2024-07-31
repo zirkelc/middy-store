@@ -3,7 +3,7 @@
 `middy-store` is a middleware for Middy to automatically store and load payloads from and to a Store like Amazon S3.
 
 ## Installation
-You will need [@middy/core](https://www.npmjs.com/package/@middy/core) to use `middy-store`.
+You will need [@middy/core](https://www.npmjs.com/package/@middy/core) >= v5 to use `middy-store`.
 
 ```sh
 npm install @middy/core middy-store middy-store-s3 
@@ -239,6 +239,63 @@ export const handler = middy()
 
 await handler({});
 ```
+
+#### Options
+The `middyStore()` function accepts the following options:
+
+| Option 		| Type 						| Default 		| Description |
+| --- 			| --- 						| --- 				| --- |
+| `stores` 	| `Array<StoreInterface>` | **Required** | An array of Store implementations to store and load payloads. |
+| `loadOpts` | `LoadOptions` | `undefined` | The options for loading payloads from the Store. |
+| `loadOpts.skip` | `boolean` | `undefined` | Skip loading the payload from the Store, even if the input contains a reference. |
+| `loadOpts.passThrough` | `boolean` | `undefined` | Pass the input through if no Store was found to load the reference. |
+| `storeOpts` | `StoreOptions` | `undefined` | The options for storing payloads into the Store |
+| `storeOpts.skip` | `boolean` | `undefined` | Skip storing the payload in the Store, even if the output exceeds the maximum size. |
+| `storeOpts.passThrough` | `boolean` | `undefined` | Pass the output through if no Store was found to store the payload. |
+| `storeOpts.selector` | `string` | `undefined` | Selects the payload from the output to store in the Store. |
+| `storeOpts.size` | `number` | `MaxSize.STEP_FUNCTIONS` | The maximum output size in bytes before the output is stored in the Store. If the output exeeds this size, it will be stored in a Store. Defaults to 256KB, the maximum output size for [Step Functions](https://docs.aws.amazon.com/step-functions/latest/dg/limits-overview.html).  |
+| `logger`	| `Logger` 				| `undefined` 			| The logger function to use for logging. |
+
+## Stores
+
+### Amazon S3
+The `middy-store-s3` package provides a Store implementation for Amazon S3. It uses the `@aws-sdk/client-s3` to interact with S3.
+
+```ts
+import { middyStore } from 'middy-store';
+import { S3Store } from 'middy-store-s3';
+
+const handler = middy()
+	.use(
+		middyStore({
+			stores: [
+				new S3Store({
+					config: { region: "us-east-1" },
+					bucket: "bucket",
+					key: () => randomUUID(),
+					format: "arn",
+				}),
+			],
+		}),
+	)
+	.handler(async (input) => {
+		return {
+			random: randomBytes(1024 * 1024).toString("hex"),
+		};
+	});
+```
+
+#### Options
+The `S3Store` accepts the following options:
+
+| Option 		| Type 						| Default 		| Description |
+| --- 			| --- 						| --- 				| --- |
+| `config` 	| `S3ClientConfig  \| Fn<S3ClientConfig>` | **Required** | The [S3 client configuration](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-client-s3/Interface/S3ClientConfig/). The `config.region` is required. |
+| `bucket` 	| `string \| Fn<string>` 				| **Required** | The name of the S3 bucket to store the payloads. |
+| `key`			| `string \| Fn<string>` | `randomUUID` | The key to store the payload in the bucket. Defaults to `randomUUID()` from `node:crypto` |
+| `format`	| `S3ReferenceFormat` 				| `url-s3-global-path` 			| The format of the S3 reference: `arn`, `object` or one of the URL formats from [amazon-s3-url](https://www.npmjs.com/package/amazon-s3-url) package. Defaults to S3 URI format `s3://<bucket>/<...keys>`|
+| `maxSize`	| `number` 				| `undefined` 			| The maximum payload size in bytes that can be stored in S3. If the payload exceeds this size, it will not be stored in S3. |
+| `logger`	| `Logger` 				| `undefined` 			| The logger function to use for logging. |
 
 ## Packages
 

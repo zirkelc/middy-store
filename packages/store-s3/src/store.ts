@@ -9,9 +9,9 @@ import {
 import { type S3UrlFormat, isS3Url, parseS3Url } from "amazon-s3-url";
 import {
 	type LoadArgs,
+	type Logger,
 	type StoreArgs,
 	type StoreInterface,
-	type StoreOptions,
 	isObject,
 	resolvableFn,
 } from "middy-store";
@@ -30,10 +30,7 @@ export type S3ArnReference = string;
 
 export type S3UriReference = string;
 
-export type S3ReferenceFormat =
-	| { type: "arn" }
-	| { type: "object" }
-	| { type: "url"; format: S3UrlFormat };
+export type S3ReferenceFormat = "arn" | "object" | `url-${S3UrlFormat}`;
 
 export interface S3ObjectReference {
 	store: "s3";
@@ -42,12 +39,13 @@ export interface S3ObjectReference {
 	region?: string;
 }
 
-export interface S3StoreOptions extends StoreOptions {
+export interface S3StoreOptions {
 	config: S3ClientConfig | (() => S3ClientConfig);
 	bucket: string | (() => string);
 	key?: string | (() => string);
-	format?: "arn" | "object" | "url" | S3ReferenceFormat;
-	logger?: (...args: any[]) => void;
+	format?: S3ReferenceFormat;
+	maxSize?: number;
+	logger?: Logger;
 }
 
 export const STORE_NAME = "s3" as const;
@@ -67,6 +65,8 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 	constructor(opts: S3StoreOptions) {
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#logger = opts.logger ?? (() => {});
+		this.#format = opts.format ?? "url-s3-global-path";
+		this.#key = resolvableFn(opts.key ?? uuidKey);
 
 		// resolve to function and invoke it
 		this.#config = resolvableFn(opts.config)();
@@ -83,20 +83,6 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 			this.#logger("Invalid bucket", { bucket: this.#bucket });
 			throw new Error(`Invalid bucket`);
 		}
-
-		// resolve to function without invoking it
-		this.#key = resolvableFn(opts.key ?? uuidKey);
-
-		this.#format =
-			opts.format === undefined
-				? { type: "url", format: "s3-global-path" }
-				: opts.format === "url"
-					? { type: "url", format: "s3-global-path" }
-					: opts.format === "arn"
-						? { type: "arn" }
-						: opts.format === "object"
-							? { type: "object" }
-							: opts.format;
 	}
 
 	canLoad(args: LoadArgs<unknown>): boolean {
@@ -171,12 +157,12 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		}
 
 		if (
-			this.#format.type === "url" &&
-			this.#format.format.includes("region") &&
+			this.#format.startsWith("url") &&
+			this.#format.includes("region") &&
 			!region
 		) {
 			throw new Error(
-				`Region is required for region-specific url format: ${this.#format.format}`,
+				`Region is required for region-specific url format: ${this.#format}`,
 			);
 		}
 

@@ -377,14 +377,18 @@ describe("S3Store.store", () => {
 	});
 
 	test.each<{
-		format: S3ReferenceFormat["type"];
+		format: S3ReferenceFormat;
 		region?: string;
 		reference: S3Reference;
 	}>([
 		{ format: "arn", reference: mockArnReference },
 		{ format: "arn", region: config.region, reference: mockArnReference },
-		{ format: "url", reference: mockUrlReference },
-		{ format: "url", region: config.region, reference: mockUrlReference },
+		{ format: "url-s3-global-path", reference: mockUrlReference },
+		{
+			format: "url-s3-region-path",
+			region: config.region,
+			reference: mockUrlReference,
+		},
 		{ format: "object", reference: mockObjectReference },
 		{
 			format: "object",

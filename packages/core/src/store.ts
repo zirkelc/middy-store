@@ -22,6 +22,8 @@ export type Resolveable<TResolved, TArgs extends any[] = []> =
 	| TResolved
 	| ((...args: TArgs) => TResolved);
 
+export type Logger = (message?: any, ...optionalParams: any[]) => void;
+
 export type Selector<TObject = unknown> = string;
 
 export const MaxSizes = {
@@ -46,10 +48,6 @@ export const MaxSizes = {
 	LAMBDA_ASYNC: 256 * 1024 * 1024, // 256KB,
 };
 
-export type StoreOptions = {
-	maxSize?: number;
-};
-
 export type StoreArgs<TPayload> = {
 	payload: TPayload;
 	byteSize: number;
@@ -70,26 +68,35 @@ export interface StoreInterface<TPayload = unknown, TReference = unknown> {
 // TODO add option to clone instead of mutate input/output
 export interface MiddyStoreOptions<TInput = unknown, TOutput = unknown> {
 	stores: Array<StoreInterface<any, any>>;
-	loadOpts?: MiddyLoadOpts<TInput>;
-	storeOpts?: MiddyStoreOpts<TInput, TOutput>;
-	logger?: (...args: any[]) => void;
-	passThrough?: boolean;
+	loadOpts?: LoadOptions<TInput>;
+	storeOpts?: StoreOptions<TInput, TOutput>;
+	logger?: Logger;
 }
 
-export interface MiddyLoadOpts<TInput> {
+export interface LoadOptions<TInput> {
 	/**
-	 * Specifies if the Store should load a payload if it finds a reference in the input.
+	 * Skip loading the payload from the Store, even if the input contains a reference.
 	 */
 	skip?: boolean;
+
+	/**
+	 * Pass the input through if no store was found to load the reference.
+	 */
+	passThrough?: boolean;
 
 	// selector?: Selector<TInput>; // TODO
 }
 
-export interface MiddyStoreOpts<TInput, TOutput> {
+export interface StoreOptions<TInput, TOutput> {
 	/**
-	 * Specifies if the Store should store a payload if it exceeds the maximum allowed size.
+	 * Skip storing the payload in the Store, even if the output exceeds the maximum size.
 	 */
 	skip?: boolean;
+
+	/**
+	 * Pass the output through if no store was found to store the payload.
+	 */
+	passThrough?: boolean;
 
 	/**
 	 * Selects the payload that should be saved in the store.
@@ -127,10 +134,10 @@ export interface MiddyStoreOpts<TInput, TOutput> {
 	selector?: Selector<TOutput>;
 
 	/**
-	 * Specifies the **byte size** at which the output payload should be saved in the store.
-	 * If the output payload exceeds the specified size, it will be saved in the store.
-	 * If the output payload is smaller than the specified size, it will be left untouched.
-	 * If the output payload should always be saved in the store, set the size to 0.
+	 * Specifies the **byte size** at which the output should be saved in the store.
+	 * If the output exceeds the specified size, it will be saved in the store.
+	 * If the output is smaller than the specified size, it will be left untouched.
+	 * If the output should always be saved in the store, set the size to 0.
 	 */
 	size?: number;
 }
@@ -158,7 +165,7 @@ const DUMMY_LOGGER = (...args: any[]) => {};
 export const middyStore = <TInput = unknown, TOutput = unknown>(
 	opts: MiddyStoreOptions<TInput, TOutput>,
 ): MiddlewareObj<TInput, TOutput> => {
-	const { stores, loadOpts, storeOpts, passThrough } = opts;
+	const { stores, loadOpts, storeOpts } = opts;
 	const logger = opts.logger ?? DUMMY_LOGGER;
 
 	return {
@@ -192,7 +199,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				// find a store that can load the reference
 				const store = stores.find((store) => store.canLoad(loadArgs));
 				if (!store) {
-					if (passThrough) {
+					if (loadOpts?.passThrough) {
 						logger(`No store was found to load reference, passthrough input`);
 						return;
 					}
@@ -283,7 +290,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				// if no store accepts the response, leave the response untouched
 				const store = stores.find((store) => store.canStore(storeArgs));
 				if (!store) {
-					if (passThrough) {
+					if (storeOpts?.passThrough) {
 						logger(`No store was found to save payload, passthrough output`);
 						return;
 					}

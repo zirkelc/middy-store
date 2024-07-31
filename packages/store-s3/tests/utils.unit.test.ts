@@ -126,21 +126,19 @@ describe("formatS3Reference", () => {
 	const { bucket, key } = obj;
 
 	test("should format a valid S3 object reference", () => {
-		expect(formatS3Reference(obj, { type: "object" })).toEqual({
+		expect(formatS3Reference(obj, "object")).toEqual({
 			...obj,
 			store: STORE_NAME,
 		});
 	});
 
 	test("should format a valid S3 ARN reference", () => {
-		expect(formatS3Reference(obj, { type: "arn" })).toBe(
-			`arn:aws:s3:::${bucket}/${key}`,
-		);
+		expect(formatS3Reference(obj, "arn")).toBe(`arn:aws:s3:::${bucket}/${key}`);
 	});
 
 	test("should format a valid S3 URL reference", () => {
-		expect(
-			formatS3Reference(obj, { type: "url", format: "s3-global-path" }),
-		).toBe(`s3://${bucket}/${key}`);
+		expect(formatS3Reference(obj, "url-s3-global-path")).toBe(
+			`s3://${bucket}/${key}`,
+		);
 	});
 });
