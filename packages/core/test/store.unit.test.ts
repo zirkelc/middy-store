@@ -11,7 +11,7 @@ import {
 	StoreOptions,
 	middyStore,
 	// middyStore,
-} from "./store.js";
+} from "../src/store.js";
 
 const context = {} as Context;
 
@@ -46,7 +46,7 @@ const mockLoadInput: LoadArgs<MockReference> = {
 	reference: mockReference,
 };
 
-const mockStoreOutput: StoreArgs = {
+const mockStoreOutput: StoreArgs<typeof mockPayload> = {
 	payload: mockPayload,
 	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
 };
@@ -81,7 +81,7 @@ beforeAll(() => {
 	vi.resetAllMocks();
 });
 
-describe("onReadInput", () => {
+describe("load", () => {
 	test.each([null, "foo", 42, true, false, () => {}])(
 		"should passthrough input if is: %s",
 		async (input) => {
@@ -116,7 +116,7 @@ describe("onReadInput", () => {
 
 		const handler = useStore({
 			stores: [mockStore],
-			passThrough: true,
+			loadOpts: { passThrough: true },
 		});
 
 		const input = mockPayloadWithReference;
@@ -133,7 +133,7 @@ describe("onReadInput", () => {
 
 		const handler = useStore({
 			stores: [mockStore],
-			passThrough: false,
+			loadOpts: { passThrough: false },
 		});
 
 		const input = mockPayloadWithReference;
@@ -241,7 +241,7 @@ describe("onReadInput", () => {
 	});
 });
 
-describe("onstoreOptsOutput", () => {
+describe("store", () => {
 	test.each([null, "foo", 42, true, false, () => {}])(
 		"should passthrough output if is: %s",
 		async (input) => {
@@ -257,7 +257,7 @@ describe("onstoreOptsOutput", () => {
 		},
 	);
 
-	test("should passthrough output if size is too size", async () => {
+	test("should passthrough output if size is too small", async () => {
 		const handler = useStore({
 			stores: [mockStore],
 		});
@@ -276,9 +276,9 @@ describe("onstoreOptsOutput", () => {
 
 		const handler = useStore({
 			stores: [mockStore],
-			passThrough: true,
 			storeOpts: {
 				size: 0,
+				passThrough: true,
 			},
 		});
 
@@ -296,9 +296,9 @@ describe("onstoreOptsOutput", () => {
 
 		const handler = useStore({
 			stores: [mockStore],
-			passThrough: false,
 			storeOpts: {
 				size: 0,
+				passThrough: false,
 			},
 		});
 

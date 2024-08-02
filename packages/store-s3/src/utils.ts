@@ -12,8 +12,6 @@ import {
 	STORE_NAME,
 } from "./store.js";
 
-export const uuidKey = () => randomUUID();
-
 export const isS3ObjectArn = (arn: unknown): arn is string => {
 	return (
 		typeof arn === "string" && arn.startsWith("arn:aws:s3") && arn.includes("/")

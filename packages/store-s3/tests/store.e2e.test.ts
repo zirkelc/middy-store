@@ -1,8 +1,6 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
 	CreateBucketCommand,
-	GetObjectCommand,
-	type GetObjectOutput,
 	HeadBucketCommand,
 	S3Client,
 	type S3ClientConfig,
@@ -10,11 +8,10 @@ import {
 } from "@aws-sdk/client-s3";
 import middy from "@middy/core";
 import { LocalstackContainer } from "@testcontainers/localstack";
-import type { Context } from "aws-lambda";
 import { MIDDY_STORE, middyStore } from "middy-store";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import { S3Store } from "../dist/index.js";
-import { context, generateRandomString } from "./test-utils.js";
+import { context, randomStringInBytes } from "./test-utils.js";
 
 const localstack = await new LocalstackContainer(
 	"localstack/localstack:3",
@@ -46,7 +43,7 @@ beforeAll(async () => {
 
 const payload = {
 	foo: {
-		bar: [generateRandomString(128 * 1024), generateRandomString(128 * 1024)],
+		bar: [randomStringInBytes(128 * 1024), randomStringInBytes(128 * 1024)],
 	},
 };
 

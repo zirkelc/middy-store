@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { MIDDY_STORE } from "./store.js";
+import { MIDDY_STORE } from "../src/store.js";
 import {
 	calculateByteSize,
 	hasReference,
@@ -7,7 +7,7 @@ import {
 	resolvableFn,
 	tryParseJSON,
 	tryStringifyJSON,
-} from "./utils.js";
+} from "../src/utils.js";
 
 const mockPayload = {
 	foo: "bar",

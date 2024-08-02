@@ -17,7 +17,7 @@ export const context: Context = {
 	succeed: () => console.log("Succeeded!"),
 };
 
-export function generateRandomString(byteLength: number) {
+export function randomStringInBytes(byteLength: number) {
 	let random = "";
 	while (Buffer.byteLength(random, "utf8") !== byteLength) {
 		random = randomBytes(byteLength).toString("base64").slice(0, byteLength);

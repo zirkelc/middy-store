@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
 	GetObjectCommand,
 	type GetObjectCommandOutput,
@@ -21,7 +22,6 @@ import {
 	isS3ObjectArn,
 	parseS3ObjectArn,
 	parseS3Reference,
-	uuidKey,
 } from "./utils.js";
 
 export type S3Reference = S3ArnReference | S3UriReference | S3ObjectReference;
@@ -66,7 +66,7 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
 		this.#logger = opts.logger ?? (() => {});
 		this.#format = opts.format ?? "url-s3-global-path";
-		this.#key = resolvableFn(opts.key ?? uuidKey);
+		this.#key = resolvableFn(opts.key ?? randomUUID);
 
 		// resolve to function and invoke it
 		this.#config = resolvableFn(opts.config)();

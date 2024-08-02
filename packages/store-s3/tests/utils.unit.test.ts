@@ -7,20 +7,9 @@ import {
 	isS3ObjectArn,
 	parseS3ObjectArn,
 	parseS3Reference,
-	uuidKey,
 } from "../src/utils.js";
 
 const nonStringValues = [null, undefined, "", 42, true, false, {}];
-
-describe("uuidKey", () => {
-	test("should generate a valid UUID key", () => {
-		const key = uuidKey();
-		expect(typeof key).toBe("string");
-		expect(key).toMatch(
-			/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/,
-		);
-	});
-});
 
 describe("isS3ObjectArn", () => {
 	test.each([
