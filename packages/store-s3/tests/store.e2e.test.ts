@@ -63,6 +63,9 @@ describe("S3Store", () => {
 
 		const store = middyStore({
 			stores: [s3Store],
+			storeOpts: {
+				size: 0,
+			},
 		});
 
 		const writeHandler = middy()
@@ -96,6 +99,7 @@ describe("S3Store", () => {
 			stores: [s3Store],
 			storeOpts: {
 				selector: "foo.bar",
+				size: 0,
 			},
 		});
 
@@ -132,6 +136,7 @@ describe("S3Store", () => {
 			stores: [s3Store],
 			storeOpts: {
 				selector: "foo.bar[0]",
+				size: 0,
 			},
 		});
 
@@ -172,6 +177,7 @@ describe("S3Store", () => {
 			stores: [s3Store],
 			storeOpts: {
 				selector: "foo.bar[*]",
+				size: 0,
 			},
 		});
 
