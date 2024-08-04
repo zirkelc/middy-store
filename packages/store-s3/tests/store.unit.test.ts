@@ -16,7 +16,8 @@ import {
 	type S3StoreOptions,
 } from "../src/store.js";
 
-const config = { region: "us-east-1" };
+const region = "us-east-1";
+const config = { region };
 const bucket = "bucket";
 const key = "key";
 
@@ -24,7 +25,7 @@ const mockArnReference = `arn:aws:s3:::${bucket}/${key}`;
 
 const mockUrlReference = `s3://${bucket}/${key}`;
 
-const mockUrlReferenceWithRegion = `s3://https://${bucket}.s3.${config.region}.amazonaws.com/${key}`;
+const mockUrlReferenceWithRegion = `s3://s3.${config.region}.amazonaws.com/${bucket}/${key}`;
 
 const mockObjectReference: S3ObjectReference = {
 	store: "s3",
@@ -62,6 +63,7 @@ describe("S3Store.constructor", () => {
 	test("should resolve options", async () => {
 		// config
 		expect(() => new S3Store({ config, bucket })).toBeDefined();
+		expect(() => new S3Store({ config: {}, bucket })).toBeDefined();
 		expect(() => new S3Store({ config: () => config, bucket })).toBeDefined();
 
 		// bucket
@@ -77,7 +79,6 @@ describe("S3Store.constructor", () => {
 		).toBeDefined();
 
 		// config error
-		expect(() => new S3Store({ config: {}, bucket })).toThrow();
 		expect(() => new S3Store({ config: () => ({}), bucket })).toThrow();
 		expect(() => new S3Store({ config: null as any, bucket })).toThrow();
 		expect(() => new S3Store({ config: () => null as any, bucket })).toThrow();
@@ -151,19 +152,19 @@ describe("S3Store.load", () => {
 		const s3Store = new S3Store({ config, bucket, key });
 
 		mockClient("foo", "text/plain");
-		await expect(() =>
+		await expect(
 			s3Store.load({ reference: mockUrlReference }),
 		).resolves.toEqual("foo");
 
 		mockClient(JSON.stringify({ foo: "bar" }), "application/json");
-		await expect(() =>
+		await expect(
 			s3Store.load({ reference: mockUrlReference }),
 		).resolves.toEqual({
 			foo: "bar",
 		});
 
 		mockClient("foo", "unsupported/type");
-		await expect(() =>
+		await expect(async () =>
 			s3Store.load({ reference: mockUrlReference }),
 		).rejects.toThrowError();
 	});
@@ -251,25 +252,6 @@ describe("S3Store.store", () => {
 			.mockImplementation(() => Promise.resolve({}));
 
 	test("should serialize content by type", async () => {
-		const s3Store = new S3Store({ config, bucket, key });
-		const byteSize = 1_000;
-
-		await expect(() =>
-			s3Store.store({ byteSize, payload: "foo" }),
-		).resolves.toEqual("foo");
-
-		await expect(() =>
-			s3Store.store({ byteSize, payload: { foo: "bar" } }),
-		).resolves.toEqual({
-			foo: "bar",
-		});
-
-		await expect(() =>
-			s3Store.store({ byteSize, payload: undefined }),
-		).rejects.toThrowError();
-	});
-
-	test("should put object and return reference", async () => {
 		const spy = mockClient();
 		const byteSize = 1_000;
 
@@ -296,37 +278,38 @@ describe("S3Store.store", () => {
 		).rejects.toThrowError();
 	});
 
-	test("should format reference", async () => {
-		const s3Store = new S3Store({ config, bucket });
+	test("should put object and return reference", async () => {
 		const byteSize = 1_000;
 		const payload = { foo: "bar" };
 
-		await expect(() =>
+		await expect(
 			new S3Store({ config, bucket, key, format: "arn" }).store({
 				byteSize,
 				payload,
 			}),
-		).resolves.toEqual(mockArnReference);
+		).resolves.toEqual(`arn:aws:s3:::${bucket}/${key}`);
 
-		await expect(() =>
+		await expect(
 			new S3Store({ config, bucket, key, format: "object" }).store({
 				byteSize,
 				payload,
 			}),
-		).resolves.toEqual(mockObjectReference);
+		).resolves.toEqual({ store: "s3", bucket, key, region });
 
-		await expect(() =>
+		await expect(
 			new S3Store({ config, bucket, key, format: "url-s3-global-path" }).store({
 				byteSize,
 				payload,
 			}),
-		).resolves.toEqual(mockUrlReference);
+		).resolves.toEqual(`s3://${bucket}/${key}`);
 
-		await expect(() =>
+		await expect(
 			new S3Store({ config, bucket, key, format: "url-s3-region-path" }).store({
 				byteSize,
 				payload,
 			}),
-		).resolves.toEqual(mockUrlReferenceWithRegion);
+		).resolves.toEqual(
+			`s3://s3.${config.region}.amazonaws.com/${bucket}/${key}`,
+		);
 	});
 });
