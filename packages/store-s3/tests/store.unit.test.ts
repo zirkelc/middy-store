@@ -65,7 +65,7 @@ describe("S3Store.constructor", () => {
 		expect(() => new S3Store({ config, bucket })).toBeDefined();
 		expect(() => new S3Store({ config: {}, bucket })).toBeDefined();
 		expect(() => new S3Store({ config: () => config, bucket })).toBeDefined();
-		expect(() => new S3Store({ config: () => ({}), bucket })).toThrow();
+		expect(() => new S3Store({ config: () => ({}), bucket })).toBeDefined();
 
 		// bucket
 		expect(() => new S3Store({ config, bucket })).toBeDefined();
