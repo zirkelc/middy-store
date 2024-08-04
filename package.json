@@ -10,9 +10,9 @@
 		"lint": "biome check . --write --no-errors-on-unmatched",
 		"prepare": "husky"
 	},
-	"dependencies": {},
 	"devDependencies": {
 		"@biomejs/biome": "^1.8.3",
+		"@changesets/cli": "^2.27.7",
 		"@testcontainers/localstack": "^10.10.4",
 		"@tsconfig/node20": "latest",
 		"@types/aws-lambda": "^8.10.140",
