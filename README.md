@@ -58,7 +58,7 @@ console.log(output1);
 const output2 = await handler2(output1);
 ```
 
-### What is a Store?
+### What's a Store?
 In general, a Store is any service that allows you to write and read abriraty objects, for example Amazon S3 or other persistent storages. But also databases like DynamoDB can act as a Store. 
 The Store receives a payload from the Lambda function, serialzes and stores it in a persistent storage. Or it loads the payload from the storage, deserializes and returns it to the Lambda function. 
 
@@ -105,7 +105,7 @@ The first Store that returns `true` will be used to store the payload with the `
 
 Therefore, it is important to note that the order of the Stores in the array is important. 
 
-### Payload Reference
+### References
 When a payload is stored in a Store, `middy-store` will return a reference to the stored payload.
 The reference is a unique identifier to find the stored payload in the Store. 
 The value of the identifier depends on the Store and its configuration. For example, a S3 Store will S3 URIs in the format `s3://<bucket>/<...keys>` as reference to the payload.
@@ -296,6 +296,48 @@ The `S3Store` accepts the following options:
 | `format`	| `S3ReferenceFormat` 				| `url-s3-global-path` 			| The format of the S3 reference: `arn`, `object` or one of the URL formats from [amazon-s3-url](https://www.npmjs.com/package/amazon-s3-url) package. Defaults to S3 URI format `s3://<bucket>/<...keys>`|
 | `maxSize`	| `number` 				| `undefined` 			| The maximum payload size in bytes that can be stored in S3. If the payload exceeds this size, it will not be stored in S3. |
 | `logger`	| `Logger` 				| `undefined` 			| The logger function to use for logging. |
+
+### Custom Store
+You can create your own Store by implementing the `StoreInterface` interface. The Store can be implemented as a class or a simple object, as long as it provides the required functions.
+
+Here's an example of a Store to store and load payloads as base64 encoded [data URLs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs#datatextplainbase64sgvsbg8sifdvcmxkiq):
+
+```ts
+import { StoreInterface, middyStore } from 'middy-store';
+
+const base64Store: StoreInterface<object, string> = {
+	name: "base64",
+	canLoad: ({ reference }) => {
+		return (
+			typeof reference === "string" &&
+			reference.startsWith("data:text/plain;base64,")
+		);
+	},
+	load: async ({ reference }) => {
+		const base64 = reference.replace("data:text/plain;base64,", "");
+		return JSON.parse(Buffer.from(base64, "base64").toString());
+	},
+	canStore: ({ payload }) => {
+		return typeof payload === "string";
+	},
+	store: async ({ payload }) => {
+		const base64 = Buffer.from(JSON.stringify(payload)).toString("base64");
+		return `data:text/plain;base64,${base64}`;
+	},
+};
+
+const handler = middy()
+	.use(
+		middyStore({
+			stores: [base64Store],
+		}),
+	)
+	.handler(async (input) => {
+		return {
+			random: randomBytes(1024 * 1024).toString("hex"),
+		};
+	});
+```
 
 ## Packages
 

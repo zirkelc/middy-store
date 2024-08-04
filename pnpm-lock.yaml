@@ -149,6 +149,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@middy/core':
+        specifier: ^5.2.3
+        version: 5.4.5
       '@smithy/types':
         specifier: ^2.10.1
         version: 2.12.0

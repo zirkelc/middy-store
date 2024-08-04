@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { ReadableStream } from "node:stream/web";
 import {
 	type GetObjectCommandOutput,
@@ -57,87 +58,81 @@ beforeAll(() => {
 	vi.resetAllMocks();
 });
 
+describe("S3Store.constructor", () => {
+	test("should resolve options", async () => {
+		// config
+		expect(() => new S3Store({ config, bucket })).toBeDefined();
+		expect(() => new S3Store({ config: () => config, bucket })).toBeDefined();
+
+		// bucket
+		expect(() => new S3Store({ config, bucket })).toBeDefined();
+		expect(
+			() => new S3Store({ config, bucket: () => randomUUID() }),
+		).toBeDefined();
+
+		// key
+		expect(() => new S3Store({ config, bucket, key })).toBeDefined();
+		expect(
+			() => new S3Store({ config, bucket, key: () => randomUUID() }),
+		).toBeDefined();
+
+		// config error
+		expect(() => new S3Store({ config: {}, bucket })).toThrow();
+		expect(() => new S3Store({ config: () => ({}), bucket })).toThrow();
+		expect(() => new S3Store({ config: null as any, bucket })).toThrow();
+		expect(() => new S3Store({ config: () => null as any, bucket })).toThrow();
+
+		// bucket error
+		expect(() => new S3Store({ config, bucket: "" })).toThrow();
+		expect(() => new S3Store({ config, bucket: () => "" })).toThrow();
+		expect(() => new S3Store({ config, bucket: null as any })).toThrow();
+		expect(() => new S3Store({ config, bucket: () => null as any })).toThrow();
+	});
+});
 describe("S3Store.canLoad", () => {
-	const s3Store = new S3Store({ config, bucket, key });
+	test("should check reference", async () => {
+		const s3Store = new S3Store({ config, bucket, key });
 
-	test("should return true for payload", async () => {
-		const input = mockLoadInput;
+		expect(s3Store.canLoad({ reference: mockArnReference })).toBe(true);
+		expect(s3Store.canLoad({ reference: mockObjectReference })).toBe(true);
+		expect(s3Store.canLoad({ reference: mockUrlReference })).toBe(true);
+		expect(s3Store.canLoad({ reference: mockUrlReferenceWithRegion })).toBe(
+			true,
+		);
 
-		const output = s3Store.canLoad(input);
-
-		expect(output).toBe(true);
+		expect(s3Store.canLoad(null as any)).toBe(false);
+		expect(s3Store.canLoad(undefined as any)).toBe(false);
+		expect(s3Store.canLoad("" as any)).toBe(false);
+		expect(s3Store.canLoad({} as any)).toBe(false);
+		expect(s3Store.canLoad({ reference: null })).toBe(false);
+		expect(s3Store.canLoad({ reference: undefined })).toBe(false);
+		expect(s3Store.canLoad({ reference: "" })).toBe(false);
+		expect(s3Store.canLoad({ reference: {} })).toBe(false);
+		expect(s3Store.canLoad({ reference: { store: null } })).toBe(false);
+		expect(s3Store.canLoad({ reference: { store: "" } })).toBe(false);
+		expect(s3Store.canLoad({ reference: { store: "foo" } })).toBe(false);
 	});
 
-	test("should return true if reference.bucket matches options.bucket", async () => {
-		const bucket = "bucket";
+	test("should check if bucket match", async () => {
+		const s3Store = new S3Store({ config, bucket, key });
+		const other = "other-bucket";
 
-		const input = {
-			...mockLoadInput,
-			reference: { ...mockObjectReference, bucket },
-		};
-
-		const output = s3Store.canLoad(input);
-
-		expect(output).toBe(true);
-	});
-
-	test("should return false if reference.bucket doesn't match options.bucket", async () => {
-		const bucket = "other-bucket";
-
-		const input = {
-			...mockLoadInput,
-			reference: { ...mockObjectReference, bucket },
-		};
-
-		const output = s3Store.canLoad(input);
-
-		expect(output).toBe(false);
-	});
-
-	test.each(["foo"])(
-		"should return true for reference.key: %s",
-		async (key) => {
-			const input = {
-				...mockLoadInput,
-				reference: { ...mockObjectReference, key },
-			};
-
-			const output = s3Store.canLoad(input);
-
-			expect(output).toBe(true);
-		},
-	);
-
-	test.each([
-		{ reference: null },
-		{ reference: undefined },
-		{ reference: "" },
-		{ reference: {} },
-		{
-			reference: {
-				store: null,
-			},
-		},
-		{
-			reference: {
-				store: "",
-			},
-		},
-		{
-			reference: {
-				store: "foo",
-			},
-		},
-	])("should return false for reference: %s", async (input) => {
-		const output = s3Store.canLoad(input as any);
-
-		expect(output).toBe(false);
+		expect(s3Store.canLoad({ reference: `arn:aws:s3:::${other}/${key}` })).toBe(
+			false,
+		);
+		expect(
+			s3Store.canLoad({ reference: { ...mockObjectReference, bucket: other } }),
+		).toBe(false);
+		expect(s3Store.canLoad({ reference: `s3://${other}/${key}` })).toBe(false);
+		expect(
+			s3Store.canLoad({
+				reference: `s3://https://${other}.s3.${config.region}.amazonaws.com/${key}`,
+			}),
+		).toBe(false);
 	});
 });
 
 describe("S3Store.load", () => {
-	const s3Store = new S3Store({ config, bucket, key });
-
 	const mockClient = (body: string, contentType: string) =>
 		vi.spyOn(S3Client.prototype, "send").mockImplementation((input) =>
 			Promise.resolve<GetObjectCommandOutput>({
@@ -152,82 +147,55 @@ describe("S3Store.load", () => {
 			}),
 		);
 
-	test("should load string payload", async () => {
-		const payload = "foo";
-		const spy = mockClient(payload, "text/plain");
-		const input = mockLoadInput;
+	test("should deserialize content by type", async () => {
+		const s3Store = new S3Store({ config, bucket, key });
 
-		const output = await s3Store.load(input);
+		mockClient("foo", "text/plain");
+		await expect(() =>
+			s3Store.load({ reference: mockUrlReference }),
+		).resolves.toEqual("foo");
 
-		expect(output).toEqual(payload);
-		expect(spy).toHaveBeenCalled();
+		mockClient(JSON.stringify({ foo: "bar" }), "application/json");
+		await expect(() =>
+			s3Store.load({ reference: mockUrlReference }),
+		).resolves.toEqual({
+			foo: "bar",
+		});
 
-		const request = spy.mock.calls[0][0].input as GetObjectRequest;
-		expect(request).toEqual({
+		mockClient("foo", "unsupported/type");
+		await expect(() =>
+			s3Store.load({ reference: mockUrlReference }),
+		).rejects.toThrowError();
+	});
+
+	test(`should get object by reference`, async () => {
+		const s3Store = new S3Store({ config, bucket, key });
+		const spy = mockClient(JSON.stringify({ foo: "bar" }), "application/json");
+
+		spy.mockClear();
+		await s3Store.load({ reference: mockArnReference });
+		expect(spy.mock.calls[0][0].input).toEqual({
 			Bucket: "bucket",
 			Key: "key",
 		});
-	});
 
-	test("should load object payload", async () => {
-		const payload = mockPayload;
-		const spy = mockClient(JSON.stringify(payload), "application/json");
-		const input = mockLoadInput;
-
-		const output = await s3Store.load(input);
-
-		expect(output).toEqual(payload);
-		expect(spy).toHaveBeenCalled();
-
-		const request = spy.mock.calls[0][0].input as GetObjectRequest;
-		expect(request).toEqual({
+		spy.mockClear();
+		await s3Store.load({ reference: mockObjectReference });
+		expect(spy.mock.calls[0][0].input).toEqual({
 			Bucket: "bucket",
 			Key: "key",
 		});
-	});
 
-	test(`should load from ARN reference`, async () => {
-		const payload = mockPayload;
-		const spy = mockClient(JSON.stringify(payload), "application/json");
-		const input = { ...mockLoadInput, reference: mockArnReference };
+		spy.mockClear();
+		await s3Store.load({ reference: mockUrlReference });
+		expect(spy.mock.calls[0][0].input).toEqual({
+			Bucket: "bucket",
+			Key: "key",
+		});
 
-		const output = await s3Store.load(input);
-
-		expect(output).toEqual(payload);
-	});
-
-	test(`should load from URI reference`, async () => {
-		const payload = mockPayload;
-		const spy = mockClient(JSON.stringify(payload), "application/json");
-		const input = { ...mockLoadInput, reference: mockUrlReference };
-
-		const output = await s3Store.load(input);
-
-		expect(output).toEqual(payload);
-	});
-
-	test(`should load from object reference`, async () => {
-		const payload = mockPayload;
-		const spy = mockClient(JSON.stringify(payload), "application/json");
-		const input = { ...mockLoadInput, reference: mockObjectReference };
-
-		const output = await s3Store.load(input);
-
-		expect(output).toEqual(payload);
-	});
-
-	test("should throw an error for unsupported types", async () => {
-		const payload = undefined;
-		const spy = mockClient(JSON.stringify(payload), "application/random");
-		const input = mockLoadInput;
-
-		const output = s3Store.load(input);
-
-		await expect(output).rejects.toThrowError();
-		expect(spy).toHaveBeenCalled();
-
-		const request = spy.mock.calls[0][0].input as GetObjectRequest;
-		expect(request).toEqual({
+		spy.mockClear();
+		await s3Store.load({ reference: mockUrlReferenceWithRegion });
+		expect(spy.mock.calls[0][0].input).toEqual({
 			Bucket: "bucket",
 			Key: "key",
 		});
@@ -235,67 +203,43 @@ describe("S3Store.load", () => {
 });
 
 describe("S3Store.canStore", () => {
-	const s3Store = new S3Store({ config, bucket, key });
+	test("should check payload", async () => {
+		const s3Store = new S3Store({ config, bucket, key });
+		const byteSize = 1_000;
 
-	test.each(["foo", { foo: "bar" }, 42, true, false])(
-		"should return true for payload type: %s",
-		async (payload) => {
-			const input = { ...mockStoreOutput, payload };
-			const output = s3Store.canStore(input);
-			expect(output).toBe(true);
-		},
-	);
+		expect(s3Store.canStore({ byteSize, payload: {} })).toBe(true);
+		expect(s3Store.canStore({ byteSize, payload: [] })).toBe(true);
+		expect(s3Store.canStore({ byteSize, payload: { foo: "bar" } })).toBe(true);
+		expect(s3Store.canStore({ byteSize, payload: "foo" })).toBe(true);
+		expect(s3Store.canStore({ byteSize, payload: 42 })).toBe(true);
+		expect(s3Store.canStore({ byteSize, payload: true })).toBe(true);
+		expect(s3Store.canStore({ byteSize, payload: false })).toBe(true);
 
-	test.each([null, undefined])(
-		"should return false for payload type: %s",
-		async (payload) => {
-			const input = { ...mockStoreOutput, payload };
-			const output = s3Store.canStore(input);
-			expect(output).toBe(false);
-		},
-	);
+		expect(s3Store.canStore({ byteSize, payload: null })).toBe(false);
+		expect(s3Store.canStore({ byteSize, payload: undefined })).toBe(false);
+	});
 
-	test.each([0, 1_000, 1_000_000, 1_000_000_000, Number.MAX_SAFE_INTEGER])(
-		"should return true for options.maxSize > payload size: %s",
-		async (byteSize) => {
-			const input = { ...mockStoreOutput, byteSize };
-			const output = s3Store.canStore(input);
-			expect(output).toBe(true);
-		},
-	);
+	test("should check byte size", async () => {
+		const s3Store1 = new S3Store({ config, bucket, key });
+		const payload = { foo: "bar" };
 
-	test.each([0, 1_000, 1_000_000, 1_000_000_000, Number.MAX_SAFE_INTEGER])(
-		"should return false for options.maxSize < payload size: %s",
-		async (byteSize) => {
-			const s3Store = new S3Store({ config, bucket, key, maxSize: 0 });
+		expect(s3Store1.canStore({ byteSize: 0, payload })).toBe(true);
+		expect(s3Store1.canStore({ byteSize: 1_000, payload })).toBe(true);
+		expect(s3Store1.canStore({ byteSize: 1_000_000, payload })).toBe(true);
+		expect(s3Store1.canStore({ byteSize: 1_000_000_000, payload })).toBe(true);
+		expect(
+			s3Store1.canStore({ byteSize: Number.MAX_SAFE_INTEGER, payload }),
+		).toBe(true);
 
-			const input = { ...mockStoreOutput, byteSize };
-			const output = s3Store.canStore(input);
-			expect(output).toBe(false);
-		},
-	);
-
-	test.each([null, undefined, "", 42, true, false, () => {}, {}])(
-		"should throw an error for invalid options.bucket: %s",
-		async (bucket) => {
-			const s3Store = new S3Store({ config, bucket: bucket as any, key });
-
-			const input = mockStoreOutput;
-
-			expect(() => s3Store.canStore(input)).toThrowError();
-		},
-	);
-
-	test.each([null, undefined, "", 42, true, false, () => {}, {}])(
-		"should throw an error for invalid options.key: %s",
-		async (key) => {
-			const s3Store = new S3Store({ config, bucket, key: () => key as any });
-
-			const input = mockStoreOutput;
-
-			expect(() => s3Store.canStore(input)).toThrowError();
-		},
-	);
+		const s3Store2 = new S3Store({ config, bucket, key, maxSize: 0 });
+		expect(s3Store2.canStore({ byteSize: 0, payload })).toBe(false);
+		expect(s3Store2.canStore({ byteSize: 1_000, payload })).toBe(false);
+		expect(s3Store2.canStore({ byteSize: 1_000_000, payload })).toBe(false);
+		expect(s3Store2.canStore({ byteSize: 1_000_000_000, payload })).toBe(false);
+		expect(
+			s3Store2.canStore({ byteSize: Number.MAX_SAFE_INTEGER, payload }),
+		).toBe(false);
+	});
 });
 
 describe("S3Store.store", () => {
@@ -306,106 +250,83 @@ describe("S3Store.store", () => {
 			.spyOn(S3Client.prototype, "send")
 			.mockImplementation(() => Promise.resolve({}));
 
-	test("should store string payload", async () => {
+	test("should serialize content by type", async () => {
+		const s3Store = new S3Store({ config, bucket, key });
+		const byteSize = 1_000;
+
+		await expect(() =>
+			s3Store.store({ byteSize, payload: "foo" }),
+		).resolves.toEqual("foo");
+
+		await expect(() =>
+			s3Store.store({ byteSize, payload: { foo: "bar" } }),
+		).resolves.toEqual({
+			foo: "bar",
+		});
+
+		await expect(() =>
+			s3Store.store({ byteSize, payload: undefined }),
+		).rejects.toThrowError();
+	});
+
+	test("should put object and return reference", async () => {
 		const spy = mockClient();
-		const payload = "foo";
-		const input = { ...mockStoreOutput, payload };
+		const byteSize = 1_000;
 
-		const output = await s3Store.store(input);
-
-		expect(output).toEqual(mockUrlReference);
-		expect(spy).toHaveBeenCalled();
-
-		const request = spy.mock.calls[0][0].input as PutObjectRequest;
-		expect(request).toEqual({
+		spy.mockClear();
+		await s3Store.store({ byteSize, payload: "foo" });
+		expect(spy.mock.calls[0][0].input).toEqual({
 			Bucket: "bucket",
 			Key: "key",
 			Body: "foo",
 			ContentType: "text/plain",
 		});
-	});
 
-	test("should store object payload", async () => {
-		const spy = mockClient();
-		const payload = { foo: "bar" };
-		const input = { ...mockStoreOutput, payload };
-
-		const output = await s3Store.store(input);
-
-		expect(output).toEqual(mockUrlReference);
-		expect(spy).toHaveBeenCalled();
-
-		const request = spy.mock.calls[0][0].input as PutObjectRequest;
-		expect(request).toEqual({
+		spy.mockClear();
+		await s3Store.store({ byteSize, payload: { foo: "bar" } });
+		expect(spy.mock.calls[0][0].input).toEqual({
 			Bucket: "bucket",
 			Key: "key",
 			Body: '{"foo":"bar"}',
 			ContentType: "application/json",
 		});
+
+		await expect(() =>
+			s3Store.store({ byteSize, payload: undefined }),
+		).rejects.toThrowError();
 	});
 
-	test.each([undefined])(
-		"should throw an error for unsupported types: %s",
-		async (payload) => {
-			const spy = mockClient();
-			const input = { ...mockStoreOutput, payload };
+	test("should format reference", async () => {
+		const s3Store = new S3Store({ config, bucket });
+		const byteSize = 1_000;
+		const payload = { foo: "bar" };
 
-			const output = s3Store.store(input);
+		await expect(() =>
+			new S3Store({ config, bucket, key, format: "arn" }).store({
+				byteSize,
+				payload,
+			}),
+		).resolves.toEqual(mockArnReference);
 
-			await expect(output).rejects.toThrowError();
-			expect(spy).not.toHaveBeenCalled();
-		},
-	);
+		await expect(() =>
+			new S3Store({ config, bucket, key, format: "object" }).store({
+				byteSize,
+				payload,
+			}),
+		).resolves.toEqual(mockObjectReference);
 
-	test.each<{
-		key: S3StoreOptions["key"];
-		result: string;
-	}>([
-		{ key: "foo", result: "foo" },
-		{ key: () => "foo", result: "foo" },
-	])("should generate object key: $result", async ({ key, result }) => {
-		const spy = mockClient();
-		const s3Store = new S3Store({ config, bucket, key, format: "object" });
-		const input = mockStoreOutput;
+		await expect(() =>
+			new S3Store({ config, bucket, key, format: "url-s3-global-path" }).store({
+				byteSize,
+				payload,
+			}),
+		).resolves.toEqual(mockUrlReference);
 
-		const output = await s3Store.store(input);
-
-		expect(spy).toHaveBeenCalled();
-
-		const s3ObjectReference = output as S3ObjectReference;
-		expect(s3ObjectReference.key).toEqual(result);
+		await expect(() =>
+			new S3Store({ config, bucket, key, format: "url-s3-region-path" }).store({
+				byteSize,
+				payload,
+			}),
+		).resolves.toEqual(mockUrlReferenceWithRegion);
 	});
-
-	test.each<{
-		format: S3ReferenceFormat;
-		region?: string;
-		reference: S3Reference;
-	}>([
-		{ format: "arn", reference: mockArnReference },
-		{ format: "arn", region: config.region, reference: mockArnReference },
-		{ format: "url-s3-global-path", reference: mockUrlReference },
-		{
-			format: "url-s3-region-path",
-			region: config.region,
-			reference: mockUrlReference,
-		},
-		{ format: "object", reference: mockObjectReference },
-		{
-			format: "object",
-			region: config.region,
-			reference: mockObjectReferenceWithRegion,
-		},
-	])(
-		`should return reference as $format`,
-		async ({ format, region, reference }) => {
-			const spy = mockClient();
-			const s3Store = new S3Store({ config, bucket, key, format });
-			const input = mockStoreOutput;
-
-			const output = await s3Store.store(input);
-
-			expect(spy).toHaveBeenCalled();
-			expect(output).toEqual(reference);
-		},
-	);
 });

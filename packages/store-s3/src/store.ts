@@ -55,8 +55,6 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 
 	#config: S3ClientConfig;
 	#maxSize: number;
-	// #client: S3Client;
-	// #region: ResolvedFn<string>;
 	#bucket: string;
 	#key: () => string;
 	#format: S3ReferenceFormat;
@@ -72,16 +70,16 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		this.#config = resolvableFn(opts.config)();
 		this.#bucket = resolvableFn(opts.bucket)();
 
-		if (!this.#config.region) {
+		if (!this.#config) {
 			this.#logger(`Invalid config: region is missing`, {
 				config: this.#config,
 			});
-			throw new Error(`Invalid config: region is missing`);
+			throw new Error(`Invalid config: ${this.#config}`);
 		}
 
 		if (!this.#bucket) {
 			this.#logger("Invalid bucket", { bucket: this.#bucket });
-			throw new Error(`Invalid bucket`);
+			throw new Error(`Invalid bucket: ${this.#bucket}`);
 		}
 	}
 
@@ -153,17 +151,13 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		const key = this.#key();
 		if (!key) {
 			this.#logger("Invalid key", { key });
-			throw new Error(`Invalid key`);
+			throw new Error(`Invalid key: ${key}`);
 		}
 
-		if (
-			this.#format.startsWith("url") &&
-			this.#format.includes("region") &&
-			!region
-		) {
-			throw new Error(
-				`Region is required for region-specific url format: ${this.#format}`,
-			);
+		if (!region) {
+			this.#logger("Invalid region", { region });
+
+			throw new Error(`Invalid region: ${region}`);
 		}
 
 		const { payload } = args;
