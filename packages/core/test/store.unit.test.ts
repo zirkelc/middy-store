@@ -1,56 +1,16 @@
 import middy from "@middy/core";
-import { APIGatewayProxyEventV2, type Context, Handler } from "aws-lambda";
-import set from "lodash.set";
+import type { Context } from "aws-lambda";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
-	type LoadArgs,
-	LoadOptions,
 	MIDDY_STORE,
 	type MiddyStoreOptions,
-	type StoreArgs,
+	Sizes,
 	type StoreInterface,
-	StoreOptions,
 	middyStore,
-	// middyStore,
 } from "../src/store.js";
+import { calculateByteSize } from "../src/utils.js";
 
 const context = {} as Context;
-
-type MockInput =
-	| {
-			foo: string;
-	  }
-	| {
-			"@middy-store": MockReference;
-	  };
-
-type MockOutput = {
-	foo: string;
-};
-
-type MockReference = {
-	store: "mock";
-};
-const mockReference: MockReference = {
-	store: "mock",
-};
-
-const mockPayloadWithReference: MockInput = {
-	"@middy-store": mockReference,
-};
-
-const mockPayload: MockInput = {
-	foo: "bar",
-};
-
-const mockLoadInput: LoadArgs<MockReference> = {
-	reference: mockReference,
-};
-
-const mockStoreOutput: StoreArgs<typeof mockPayload> = {
-	payload: mockPayload,
-	byteSize: Buffer.byteLength(JSON.stringify(mockPayload)),
-};
 
 const mockStore: StoreInterface = {
 	name: "mock",
@@ -128,7 +88,85 @@ describe("load", () => {
 		expect(mockStore.load).not.toHaveBeenCalled();
 	});
 
-	test("should passthrough input if no store was found", async () => {
+	test("should passthrough input if stores are empty", async () => {
+		const reference = {
+			store: "mock",
+		};
+
+		const handler = useStore({
+			stores: [],
+			loadOptions: { passThrough: true },
+		});
+
+		await expect(
+			handler(
+				{
+					[MIDDY_STORE]: reference,
+				},
+				context,
+			),
+		).resolves.toEqual(reference);
+
+		await expect(
+			handler(
+				{
+					a: {
+						[MIDDY_STORE]: reference,
+					},
+				},
+				context,
+			),
+		).resolves.toEqual({ a: reference });
+
+		await expect(
+			handler(
+				{
+					a: {
+						b: { [MIDDY_STORE]: reference },
+					},
+				},
+				context,
+			),
+		).resolves.toEqual({ a: { b: reference } });
+
+		await expect(
+			handler(
+				{
+					a: {
+						b: { c: [{ [MIDDY_STORE]: reference }] },
+					},
+				},
+				context,
+			),
+		).resolves.toEqual({ a: { b: { c: [reference] } } });
+
+		await expect(
+			handler(
+				[
+					{
+						[MIDDY_STORE]: reference,
+					},
+				],
+				context,
+			),
+		).resolves.toEqual([reference]);
+
+		await expect(
+			handler(
+				[
+					{
+						[MIDDY_STORE]: reference,
+					},
+					{
+						[MIDDY_STORE]: reference,
+					},
+				],
+				context,
+			),
+		).resolves.toEqual([reference, reference]);
+	});
+
+	test("should passthrough input if no store can load", async () => {
 		vi.mocked(mockStore.canLoad).mockReturnValue(false);
 
 		const reference = {
@@ -202,6 +240,22 @@ describe("load", () => {
 		).resolves.toEqual([reference]);
 		expect(mockStore.canLoad).toHaveBeenCalledWith({ reference });
 		expect(mockStore.load).not.toHaveBeenCalled();
+
+		await expect(
+			handler(
+				[
+					{
+						[MIDDY_STORE]: reference,
+					},
+					{
+						[MIDDY_STORE]: reference,
+					},
+				],
+				context,
+			),
+		).resolves.toEqual([reference, reference]);
+		expect(mockStore.canLoad).toHaveBeenCalledWith({ reference });
+		expect(mockStore.load).not.toHaveBeenCalled();
 	});
 
 	test("should throw an error if no store was found", async () => {
@@ -269,6 +323,9 @@ describe("load", () => {
 		await expect(
 			handler(
 				[
+					{
+						[MIDDY_STORE]: reference,
+					},
 					{
 						[MIDDY_STORE]: reference,
 					},
@@ -368,254 +425,243 @@ describe("load", () => {
 						[MIDDY_STORE]: reference,
 					},
 					{
-						a: { [MIDDY_STORE]: reference },
-					},
-					{
-						a: {
-							b: { [MIDDY_STORE]: reference },
-						},
-					},
-					{
-						a: {
-							b: { c: [{ [MIDDY_STORE]: reference }] },
-						},
+						[MIDDY_STORE]: reference,
 					},
 				],
 				context,
 			),
-		).resolves.toEqual([
-			payload,
-			{ a: payload },
-			{ a: { b: payload } },
-			{ a: { b: { c: [payload] } } },
-		]);
+		).resolves.toEqual([payload, payload]);
 		expect(mockStore.canLoad).toHaveBeenCalledWith({ reference });
 		expect(mockStore.load).toHaveBeenCalledWith({ reference });
 	});
 });
 
 describe("store", () => {
-	test.each([null, "foo", 42, true, false, () => {}])(
-		"should passthrough output if is: %s",
-		async (input) => {
-			const handler = useStore({
-				stores: [mockStore],
-			});
-
-			const output = await handler(input as any, context);
-
-			expect(output).toEqual(input);
-			expect(mockStore.canStore).not.toHaveBeenCalled();
-			expect(mockStore.store).not.toHaveBeenCalled();
-		},
-	);
-
-	test("should passthrough output if size is too small", async () => {
+	test("should passthrough output if it not an object", async () => {
 		const handler = useStore({
 			stores: [mockStore],
 		});
 
-		const input = mockPayload;
+		await expect(handler(null, context)).resolves.toEqual(null);
+		expect(mockStore.canStore).not.toHaveBeenCalled();
+		expect(mockStore.store).not.toHaveBeenCalled();
 
-		const output = await handler(input, context);
+		await expect(handler(undefined, context)).resolves.toEqual({});
+		expect(mockStore.canStore).not.toHaveBeenCalled();
+		expect(mockStore.store).not.toHaveBeenCalled();
 
-		expect(output).toEqual(input);
+		await expect(handler("foo", context)).resolves.toEqual("foo");
+		expect(mockStore.canStore).not.toHaveBeenCalled();
+		expect(mockStore.store).not.toHaveBeenCalled();
+
+		await expect(handler(42, context)).resolves.toEqual(42);
+		expect(mockStore.canStore).not.toHaveBeenCalled();
+		expect(mockStore.store).not.toHaveBeenCalled();
+
+		await expect(handler(true, context)).resolves.toEqual(true);
+		expect(mockStore.canStore).not.toHaveBeenCalled();
+		expect(mockStore.store).not.toHaveBeenCalled();
+
+		await expect(handler(false, context)).resolves.toEqual(false);
 		expect(mockStore.canStore).not.toHaveBeenCalled();
 		expect(mockStore.store).not.toHaveBeenCalled();
 	});
 
-	test("should passthrough output if no store was found", async () => {
+	test("should passthrough output if size is too small", async () => {
+		const payload = {
+			foo: "bar",
+		};
+
+		const handler = useStore({
+			stores: [mockStore],
+		});
+
+		await expect(handler(payload, context)).resolves.toEqual(payload);
+		expect(mockStore.canStore).not.toHaveBeenCalled();
+		expect(mockStore.store).not.toHaveBeenCalled();
+	});
+
+	test("should passthrough output if stores are empty", async () => {
+		const payload = {
+			foo: "bar",
+		};
+		const byteSize = calculateByteSize(payload);
+
+		const handler = useStore({
+			stores: [],
+		});
+
+		await expect(handler(payload, context)).resolves.toEqual(payload);
+	});
+
+	test("should passthrough output if no store can store", async () => {
+		const payload = {
+			foo: "bar",
+		};
+		const byteSize = calculateByteSize(payload);
+
 		vi.mocked(mockStore.canStore).mockReturnValue(false);
 
 		const handler = useStore({
 			stores: [mockStore],
 			storeOptions: {
-				minSize: 0,
+				minSize: Sizes.ZERO,
 				passThrough: true,
 			},
 		});
 
-		const input = mockPayload;
-
-		const output = await handler(input, context);
-
-		expect(output).toEqual(mockPayload);
-		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
+		await expect(handler(payload, context)).resolves.toEqual(payload);
+		expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 		expect(mockStore.store).not.toHaveBeenCalled();
 	});
 
 	test("should throw an error if no store was found", async () => {
 		vi.mocked(mockStore.canStore).mockReturnValue(false);
 
+		const payload = {
+			foo: "bar",
+		};
+		const byteSize = calculateByteSize(payload);
+
 		const handler = useStore({
 			stores: [mockStore],
 			storeOptions: {
-				minSize: 0,
+				minSize: Sizes.ZERO,
 				passThrough: false,
 			},
 		});
 
-		const input = mockPayloadWithReference;
-
-		const output = handler(input, context);
-
-		await expect(output).rejects.toThrow();
-		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
+		await expect(handler(payload, context)).rejects.toThrow();
+		expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 		expect(mockStore.store).not.toHaveBeenCalled();
 	});
 
-	test("should store output if size exceeds max size", async () => {
+	test("should store output and return reference", async () => {
+		const reference = {
+			store: "mock",
+		};
+		const payload = { a: { b: { c: [{ foo: "bar" }, { foo: "bar" }] } } };
+		const byteSize = calculateByteSize(payload);
+
 		vi.mocked(mockStore.canStore).mockReturnValue(true);
-		vi.mocked(mockStore.store).mockResolvedValue(mockReference);
+		vi.mocked(mockStore.store).mockResolvedValue(reference);
 
-		const handler = useStore({
-			stores: [mockStore],
-			storeOptions: {
-				minSize: 0,
-			},
-		});
-
-		const input = mockPayload;
-
-		const output = await handler(input, context);
-
-		expect(output).toEqual(mockPayloadWithReference);
-		expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
-		expect(mockStore.store).toHaveBeenCalledWith(mockStoreOutput);
-	});
-
-	test.each([
 		{
-			selector: undefined,
-			input: mockPayload,
-			result: mockPayloadWithReference,
-		},
-		{
-			selector: "",
-			input: mockPayload,
-			result: mockPayloadWithReference,
-		},
-	])(
-		"should select root payload with selector: $selector",
-		async ({ selector, input, result }) => {
-			vi.mocked(mockStore.canStore).mockReturnValue(true);
-			vi.mocked(mockStore.store).mockResolvedValue(mockReference);
-
 			const handler = useStore({
 				stores: [mockStore],
 				storeOptions: {
-					minSize: 0,
-					selector,
+					minSize: Sizes.ZERO,
+					selector: "",
 				},
 			});
 
-			const output = await handler(input, context);
+			await expect(handler(structuredClone(payload), context)).resolves.toEqual(
+				{ [MIDDY_STORE]: reference },
+			);
+			expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
+			expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
+		}
 
-			expect(output).toEqual(result);
-			expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
-			expect(mockStore.store).toHaveBeenCalledWith(mockStoreOutput);
-		},
-	);
-
-	test.each([
 		{
-			selector: "a",
-			input: { a: mockPayload },
-			result: { a: mockPayloadWithReference },
-		},
-		{
-			selector: "a.b",
-			input: { a: { b: mockPayload } },
-			result: { a: { b: mockPayloadWithReference } },
-		},
-		{
-			selector: "a.b[0].c",
-			input: { a: { b: [{ c: mockPayload }] } },
-			result: { a: { b: [{ c: mockPayloadWithReference }] } },
-		},
-	])(
-		"should select single payload with selector: $selector",
-		async ({ selector, input, result }) => {
-			vi.mocked(mockStore.canStore).mockReturnValue(true);
-			vi.mocked(mockStore.store).mockResolvedValue(mockReference);
-
 			const handler = useStore({
 				stores: [mockStore],
 				storeOptions: {
-					minSize: 0,
-					selector,
+					minSize: Sizes.ZERO,
+					selector: "a",
 				},
 			});
 
-			const output = await handler(input, context);
+			await expect(handler(structuredClone(payload), context)).resolves.toEqual(
+				{ a: { [MIDDY_STORE]: reference } },
+			);
+			expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
+			expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
+		}
 
-			expect(output).toEqual(result);
-			expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
-			expect(mockStore.store).toHaveBeenCalledWith(mockStoreOutput);
-		},
-	);
-
-	test.each([
 		{
-			selector: "a[*]",
-			input: { a: [mockPayload, mockPayload, mockPayload] },
-			result: {
-				a: [
-					mockPayloadWithReference,
-					mockPayloadWithReference,
-					mockPayloadWithReference,
-				],
-			},
-		},
-		{
-			selector: "a.b[*]",
-			input: { a: { b: [mockPayload, mockPayload, mockPayload] } },
-			result: {
-				a: {
-					b: [
-						mockPayloadWithReference,
-						mockPayloadWithReference,
-						mockPayloadWithReference,
-					],
+			const handler = useStore({
+				stores: [mockStore],
+				storeOptions: {
+					minSize: Sizes.ZERO,
+					selector: "a.b",
 				},
-			},
-		},
+			});
+
+			await expect(handler(structuredClone(payload), context)).resolves.toEqual(
+				{ a: { b: { [MIDDY_STORE]: reference } } },
+			);
+			expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
+			expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
+		}
+
 		{
-			selector: "a.b[0].c[*]",
-			input: { a: { b: [{ c: [mockPayload, mockPayload, mockPayload] }] } },
-			result: {
-				a: {
-					b: [
-						{
-							c: [
-								mockPayloadWithReference,
-								mockPayloadWithReference,
-								mockPayloadWithReference,
-							],
+			const handler = useStore({
+				stores: [mockStore],
+				storeOptions: {
+					minSize: Sizes.ZERO,
+					selector: "a.b.c",
+				},
+			});
+
+			await expect(handler(structuredClone(payload), context)).resolves.toEqual(
+				{ a: { b: { c: { [MIDDY_STORE]: reference } } } },
+			);
+			expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
+			expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
+		}
+
+		{
+			const handler = useStore({
+				stores: [mockStore],
+				storeOptions: {
+					minSize: Sizes.ZERO,
+					selector: "a.b.c[0]",
+				},
+			});
+
+			await expect(handler(structuredClone(payload), context)).resolves.toEqual(
+				{ a: { b: { c: [{ [MIDDY_STORE]: reference }, { foo: "bar" }] } } },
+			);
+			expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
+			expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
+		}
+
+		{
+			const handler = useStore({
+				stores: [mockStore],
+				storeOptions: {
+					minSize: Sizes.ZERO,
+					selector: "a.b.c[*]",
+				},
+			});
+
+			await expect(handler(structuredClone(payload), context)).resolves.toEqual(
+				{
+					a: {
+						b: {
+							c: [{ [MIDDY_STORE]: reference }, { [MIDDY_STORE]: reference }],
 						},
-					],
+					},
 				},
-			},
-		},
-	])(
-		"should select multiple payloads with selector: $selector",
-		async ({ selector, input, result }) => {
-			vi.mocked(mockStore.canStore).mockReturnValue(true);
-			vi.mocked(mockStore.store).mockResolvedValue(mockReference);
+			);
+			expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
+			expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
+		}
 
+		{
 			const handler = useStore({
 				stores: [mockStore],
 				storeOptions: {
-					minSize: 0,
-					selector,
+					minSize: Sizes.ZERO,
+					selector: "a.b",
 				},
 			});
 
-			const output = await handler(input, context);
-
-			expect(output).toEqual(result);
-			expect(mockStore.canStore).toHaveBeenCalledWith(mockStoreOutput);
-			expect(mockStore.store).toHaveBeenCalledWith(mockStoreOutput);
-		},
-	);
+			await expect(handler(structuredClone(payload), context)).resolves.toEqual(
+				{ a: { b: { [MIDDY_STORE]: reference } } },
+			);
+			expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
+			expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
+		}
+	});
 });

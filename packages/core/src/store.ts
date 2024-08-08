@@ -186,7 +186,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 
 			const { event: input, context } = request;
 
-			if (!isObject(input) || Object.keys(input).length === 0) {
+			if (!isObject(input)) {
 				logger(`Input must be an object, skipping store`);
 				return;
 			}
@@ -216,7 +216,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 							path,
 						}) as TInput;
 
-						return;
+						continue;
 					}
 
 					logger(`No store was found to load reference, throwing error`);
@@ -261,7 +261,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 
 			const { response: output, event: input } = request;
 
-			if (!isObject(output) || Object.keys(output).length === 0) {
+			if (!isObject(output)) {
 				logger(`Output must be an object, skipping store`);
 				return;
 			}
@@ -310,8 +310,6 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				const store = stores.find((store) => store.canStore(storeArgs));
 				if (!store) {
 					if (storeOpts?.passThrough) {
-						// TODO passthrough raw reference like S3 URL or ARN without middy-store key
-
 						logger(`No store was found to save payload, passthrough output`);
 						return;
 					}

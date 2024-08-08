@@ -17,6 +17,7 @@
 	},
 	"files": ["dist"],
 	"publishConfig": {
+		"access": "public",
 		"module": "./dist/index.cs",
 		"exports": {
 			".": {
