@@ -11,6 +11,7 @@ import { type S3UrlFormat, isS3Url, parseS3Url } from "amazon-s3-url";
 import {
 	type LoadArgs,
 	type Logger,
+	Sizes,
 	type StoreArgs,
 	type StoreInterface,
 	isObject,
@@ -40,7 +41,7 @@ export interface S3ObjectReference {
 }
 
 export interface S3StoreOptions {
-	config: S3ClientConfig | (() => S3ClientConfig);
+	config?: S3ClientConfig | (() => S3ClientConfig);
 	bucket: string | (() => string);
 	key?: string | (() => string);
 	format?: S3ReferenceFormat;
@@ -53,66 +54,72 @@ export const STORE_NAME = "s3" as const;
 export class S3Store implements StoreInterface<unknown, S3Reference> {
 	readonly name = STORE_NAME;
 
-	#config: S3ClientConfig;
-	#maxSize: number;
-	#bucket: string;
+	#config: () => S3ClientConfig;
+	#bucket: () => string;
 	#key: () => string;
-	#format: S3ReferenceFormat;
 	#logger: (...args: any[]) => void;
+	#maxSize: number;
+	#format: S3ReferenceFormat;
 
 	constructor(opts: S3StoreOptions) {
-		this.#maxSize = opts.maxSize ?? Number.POSITIVE_INFINITY;
+		this.#maxSize = opts.maxSize ?? Sizes.INFINITY;
 		this.#logger = opts.logger ?? (() => {});
 		this.#format = opts.format ?? "url-s3-global-path";
+
+		this.#config = resolvableFn(opts.config ?? {});
+		this.#bucket = resolvableFn(opts.bucket);
 		this.#key = resolvableFn(opts.key ?? randomUUID);
-
-		// resolve to function and invoke it
-		this.#config = resolvableFn(opts.config)();
-		this.#bucket = resolvableFn(opts.bucket)();
-
-		if (!this.#config) {
-			this.#logger(`Invalid config: region is missing`, {
-				config: this.#config,
-			});
-			throw new Error(`Invalid config: ${this.#config}`);
-		}
-
-		if (!this.#bucket) {
-			this.#logger("Invalid bucket", { bucket: this.#bucket });
-			throw new Error(`Invalid bucket: ${this.#bucket}`);
-		}
 	}
 
 	canLoad(args: LoadArgs<unknown>): boolean {
-		this.#logger("Checking if store can load input");
+		this.#logger(`Checking if store can load`);
 
 		if (!isObject(args)) return false;
 
 		const { reference } = args;
 
+		const thisBucket = this.#bucket();
+		if (!thisBucket) {
+			this.#logger("Invalid bucket", { thisBucket });
+			throw new Error(`Invalid bucket: ${thisBucket}`);
+		}
+
+		let otherBucket = "";
+
 		if (isS3ObjectArn(reference)) {
-			const { bucket: otherBucket } = parseS3ObjectArn(reference);
-			return otherBucket === this.#bucket;
+			const { bucket } = parseS3ObjectArn(reference);
+			otherBucket = bucket;
+
+			this.#logger(`Parsed reference ARN ${reference} to ${bucket}`);
 		}
 
 		if (isS3Url(reference)) {
-			const { bucket: otherBucket } = parseS3Url(reference);
-			// TODO check region matches config.region?
-			return otherBucket === this.#bucket;
+			const { bucket } = parseS3Url(reference);
+			otherBucket = bucket;
+
+			this.#logger(`Parsed reference URL ${reference} to bucket ${bucket}`);
 		}
 
 		if (isS3Object(reference)) {
-			const { bucket: otherBucket } = reference;
-			return otherBucket === this.#bucket;
+			const { bucket } = reference;
+			otherBucket = bucket;
+
+			this.#logger(
+				`Parsed reference object ${JSON.stringify(reference)} to bucket ${bucket}`,
+			);
 		}
 
-		return false;
+		const canLoad = thisBucket === otherBucket;
+		this.#logger(canLoad ? "Store can load" : "Store cannot load");
+
+		return canLoad;
 	}
 
 	async load(args: LoadArgs<S3Reference>): Promise<unknown> {
 		this.#logger("Loading payload");
 
-		const client = new S3Client(this.#config);
+		const config = this.#config();
+		const client = new S3Client(config);
 
 		const { reference } = args;
 		const { bucket, key } = parseS3Reference(reference);
@@ -126,7 +133,7 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 	}
 
 	canStore(args: StoreArgs<unknown>): boolean {
-		this.#logger("Checking if store can save output");
+		this.#logger("Checking if store can store output");
 
 		const { payload, byteSize } = args;
 
@@ -134,19 +141,25 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		if (byteSize > this.#maxSize) return false;
 		if (payload === null || payload === undefined) return false;
 
-		this.#logger("Store can save");
+		const thisBucket = this.#bucket();
+		if (!thisBucket) {
+			this.#logger("Invalid bucket", { thisBucket });
+			throw new Error(`Invalid bucket: ${thisBucket}`);
+		}
+
+		this.#logger("Store can store");
 
 		return true;
 	}
 
 	public async store(args: StoreArgs<unknown>): Promise<S3Reference> {
-		this.#logger("Writing payload");
+		this.#logger("Storing payload");
 
-		const bucket = this.#bucket;
-		const region =
-			typeof this.#config.region === "function"
-				? await this.#config.region()
-				: this.#config.region;
+		const bucket = this.#bucket();
+		if (!bucket) {
+			this.#logger("Invalid bucket", { bucket });
+			throw new Error(`Invalid bucket: ${bucket}`);
+		}
 
 		const key = this.#key();
 		if (!key) {
@@ -154,16 +167,11 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 			throw new Error(`Invalid key: ${key}`);
 		}
 
-		if (!region) {
-			this.#logger("Invalid region", { region });
-
-			throw new Error(`Invalid region: ${region}`);
-		}
-
 		const { payload } = args;
 		this.#logger("Put object to bucket", { bucket, key });
 
-		const client = new S3Client(this.#config);
+		const config = this.#config();
+		const client = new S3Client(config);
 
 		try {
 			await client.send(
@@ -178,7 +186,12 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 			throw error;
 		}
 
-		this.#logger("Wrote payload");
+		const region =
+			typeof config.region === "function"
+				? await config.region()
+				: config.region;
+
+		this.#logger("Stored payload");
 
 		return formatS3Reference({ bucket, key, region }, this.#format);
 	}

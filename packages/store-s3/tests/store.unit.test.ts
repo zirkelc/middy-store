@@ -1,19 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { ReadableStream } from "node:stream/web";
-import {
-	type GetObjectCommandOutput,
-	type GetObjectRequest,
-	type PutObjectRequest,
-	S3Client,
-} from "@aws-sdk/client-s3";
+import { type GetObjectCommandOutput, S3Client } from "@aws-sdk/client-s3";
 import type { LoadArgs, StoreArgs } from "middy-store";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
 	type S3ObjectReference,
 	type S3Reference,
-	type S3ReferenceFormat,
 	S3Store,
-	type S3StoreOptions,
 } from "../src/store.js";
 
 const region = "us-east-1";

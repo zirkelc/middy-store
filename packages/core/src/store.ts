@@ -6,7 +6,6 @@ import {
 	generateReferencePaths,
 	isObject,
 	replaceByPath,
-	resolvableFn,
 	selectByPath,
 } from "./utils.js";
 
@@ -26,11 +25,18 @@ export type Logger = (message?: any, ...optionalParams: any[]) => void;
 
 export type Selector<TObject = unknown> = string;
 
-export const MaxSizes = {
+/**
+ * Size limits for input and output of AWS services.
+ */
+export const Sizes = {
 	/**
 	 * Always write the output to the store.
 	 */
-	ALWAYS: 0,
+	ZERO: 0,
+	/**
+	 * Never write the output to the store.
+	 */
+	INFINITY: Number.POSITIVE_INFINITY,
 	/**
 	 * The maximum size for Step Functions payloads is 256KB.
 	 * @see https://docs.aws.amazon.com/step-functions/latest/dg/limits-overview.html
@@ -68,8 +74,8 @@ export interface StoreInterface<TPayload = unknown, TReference = unknown> {
 // TODO add option to clone instead of mutate input/output
 export interface MiddyStoreOptions<TInput = unknown, TOutput = unknown> {
 	stores: Array<StoreInterface<any, any>>;
-	loadOpts?: LoadOptions<TInput>;
-	storeOpts?: StoreOptions<TInput, TOutput>;
+	loadOptions?: LoadOptions<TInput>;
+	storeOptions?: StoreOptions<TInput, TOutput>;
 	logger?: Logger;
 }
 
@@ -134,12 +140,14 @@ export interface StoreOptions<TInput, TOutput> {
 	selector?: Selector<TOutput>;
 
 	/**
-	 * Specifies the **byte size** at which the output should be saved in the store.
+	 * Specifies the minimum **byte size** at which the output should be saved in the store.
+	 * The `SizeLimits` object contains predefined sizes for AWS services.
 	 * If the output exceeds the specified size, it will be saved in the store.
 	 * If the output is smaller than the specified size, it will be left untouched.
-	 * If the output should always be saved in the store, set the size to 0.
+	 * If the output should always be saved in the store, set the size to `SizeLimits.ZERO`.
+	 * If the output should never be saved in the store, set the size to `SizeLimits.INFINITY`.
 	 */
-	size?: number;
+	minSize?: number;
 }
 
 const ROOT_SELECTOR = "";
@@ -165,11 +173,10 @@ const DUMMY_LOGGER = (...args: any[]) => {};
 export const middyStore = <TInput = unknown, TOutput = unknown>(
 	opts: MiddyStoreOptions<TInput, TOutput>,
 ): MiddlewareObj<TInput, TOutput> => {
-	const { stores, loadOpts, storeOpts } = opts;
+	const { stores, loadOptions: loadOpts, storeOptions: storeOpts } = opts;
 	const logger = opts.logger ?? DUMMY_LOGGER;
 
 	return {
-		// onReadInput
 		before: async (request) => {
 			// setting read to false will skip the store
 			if (loadOpts?.skip) {
@@ -201,6 +208,14 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				if (!store) {
 					if (loadOpts?.passThrough) {
 						logger(`No store was found to load reference, passthrough input`);
+
+						// replace the middy-store reference with the raw reference
+						request.event = replaceByPath({
+							source: input,
+							value: reference,
+							path,
+						}) as TInput;
+
 						return;
 					}
 
@@ -234,7 +249,6 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 			}
 		},
 
-		// onWriteOutput
 		after: async (request) => {
 			// setting write to false will skip the store
 			if (storeOpts?.skip) {
@@ -243,7 +257,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 			}
 
 			const selector = storeOpts?.selector ?? ROOT_SELECTOR;
-			const size = storeOpts?.size ?? MaxSizes.STEP_FUNCTIONS;
+			const minSize = storeOpts?.minSize ?? Sizes.STEP_FUNCTIONS;
 
 			const { response: output, event: input } = request;
 
@@ -252,21 +266,26 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				return;
 			}
 
-			// check if response size exceeds the maximum allowed size
-			// if it does, store the response in the store
-			// if it doesn't, leave the response untouched
-			// if maxSize is 0, always store the response in the store
+			// check if response size exceeds the minimum size upon which the response should be stored
 			const byteSize = calculateByteSize(output);
-			if (size > 0 && byteSize < size) {
+
+			if (minSize === Sizes.INFINITY) {
 				logger(
-					`Output size of ${byteSize} bytes is less than ${size} bytes, skipping store`,
+					`Output size of ${byteSize} bytes is less than ${minSize} bytes, skipping store`,
 				);
 				return;
 			}
 
-			logger(
-				`Output size of ${byteSize} bytes is greater than ${size} bytes, save in store`,
-			);
+			if (minSize < byteSize) {
+				logger(
+					`Output size of ${byteSize} bytes is greater than ${minSize} bytes, save in store`,
+				);
+			} else {
+				logger(
+					`Output size of ${byteSize} bytes is less than ${minSize} bytes, skipping store`,
+				);
+				return;
+			}
 
 			let index = 0;
 			for (const path of generatePayloadPaths({ output, selector })) {
@@ -291,6 +310,8 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				const store = stores.find((store) => store.canStore(storeArgs));
 				if (!store) {
 					if (storeOpts?.passThrough) {
+						// TODO passthrough raw reference like S3 URL or ARN without middy-store key
+
 						logger(`No store was found to save payload, passthrough output`);
 						return;
 					}

@@ -1,4 +1,4 @@
-# Middleware middy-store
+# Middleware `middy-store` for Middy
 
 `middy-store` is a middleware for Middy that automatically stores and loads payloads from and to a store, like Amazon S3.
 
@@ -206,11 +206,12 @@ export const handler = middy()
     middyStore({
       stores: [new S3Store({ /* S3 options */ })],
       storeOpts: {
-        size: MaxSize.STEP_FUNCTIONS, 	// 256KB
-        // size: MaxSize.LAMBDA_SYNC, 	// 6MB
-        // size: MaxSize.LAMBDA_ASYNC, 	// 256KB
-        // size: 1024 * 1024, 					// 1MB
-        // size: MaxSize.ALWAYS, 				// 0B
+        minSize: Sizes.STEP_FUNCTIONS, 	// 256KB
+        // minSize: Sizes.LAMBDA_SYNC, 	// 6MB
+        // minSize: Sizes.LAMBDA_ASYNC, // 256KB
+        // minSize: 1024 * 1024, 				// 1MB
+        // minSize: Sizes.ZERO, 				// 0B
+        // minSize: Sizes.INFINITY, 		// Infinity
       }
     })
   )
@@ -272,7 +273,7 @@ The `S3Store` accepts the following options:
 
 | Option     | Type                                      | Default                   | Description |
 | ---------- | ----------------------------------------- | ------------------------- | ----------- |
-| `config`   | `S3ClientConfig  \| Fn<S3ClientConfig>`   | **Required**              | The [S3 client configuration](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-client-s3/Interface/S3ClientConfig/). The `config.region` is required. |
+| `config`   | `S3ClientConfig  \| Fn<S3ClientConfig>`   | `{}`                      | The [S3 client configuration](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-client-s3/Interface/S3ClientConfig/).|
 | `bucket`   | `string \| Fn<string>`                    | **Required**              | The name of the S3 bucket to store the payloads. |
 | `key`      | `string \| Fn<string>`                    | `randomUUID`              | The key to store the payload in the bucket. Defaults to `randomUUID()` from `node:crypto`. |
 | `format`   | `S3ReferenceFormat`                       | `url-s3-global-path`      | The format of the S3 reference: `arn`, `object` or one of the URL formats from [amazon-s3-url](https://www.npmjs.com/package/amazon-s3-url) package. Defaults to S3 URI format `s3://<bucket>/<...keys>`. |
