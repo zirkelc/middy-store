@@ -7,7 +7,7 @@ import {
 	S3Client,
 	type S3ClientConfig,
 } from "@aws-sdk/client-s3";
-import { type S3UrlFormat, isS3Url, parseS3Url } from "amazon-s3-url";
+import type { S3UrlFormat } from "amazon-s3-url";
 import {
 	type LoadArgs,
 	type Logger,
@@ -17,13 +17,7 @@ import {
 	isObject,
 	resolvableFn,
 } from "middy-store";
-import {
-	formatS3Reference,
-	isS3Object,
-	isS3ObjectArn,
-	parseS3ObjectArn,
-	parseS3Reference,
-} from "./utils.js";
+import { formatS3Reference, parseS3Reference } from "./utils.js";
 
 export type S3Reference = S3ArnReference | S3UriReference | S3ObjectReference;
 
@@ -78,56 +72,37 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 
 		const { reference } = args;
 
-		const thisBucket = this.#bucket();
-		if (!thisBucket) {
-			this.#logger("Invalid bucket", { thisBucket });
-			throw new Error(`Invalid bucket: ${thisBucket}`);
+		try {
+			const { bucket } = parseS3Reference(reference);
+
+			this.#logger(`Store can load from bucket ${bucket}`);
+
+			return true;
+		} catch (error) {
+			this.#logger(`Reference ${reference} is not an S3 reference`);
+			return false;
 		}
-
-		let otherBucket = "";
-
-		if (isS3ObjectArn(reference)) {
-			const { bucket } = parseS3ObjectArn(reference);
-			otherBucket = bucket;
-
-			this.#logger(`Parsed reference ARN ${reference} to ${bucket}`);
-		}
-
-		if (isS3Url(reference)) {
-			const { bucket } = parseS3Url(reference);
-			otherBucket = bucket;
-
-			this.#logger(`Parsed reference URL ${reference} to bucket ${bucket}`);
-		}
-
-		if (isS3Object(reference)) {
-			const { bucket } = reference;
-			otherBucket = bucket;
-
-			this.#logger(
-				`Parsed reference object ${JSON.stringify(reference)} to bucket ${bucket}`,
-			);
-		}
-
-		const canLoad = thisBucket === otherBucket;
-		this.#logger(canLoad ? "Store can load" : "Store cannot load");
-
-		return canLoad;
 	}
 
 	async load(args: LoadArgs<S3Reference>): Promise<unknown> {
 		this.#logger("Loading payload");
 
-		const config = this.#config();
-		const client = new S3Client(config);
+		// const config = this.#config();
+		// const client = new S3Client(config);
+
+		const client = this.getClient();
 
 		const { reference } = args;
 		const { bucket, key } = parseS3Reference(reference);
+		this.#logger(`Loading payload from reference ${reference}`);
+
 		const result = await client.send(
 			new GetObjectCommand({ Bucket: bucket, Key: key }),
 		);
 
 		const payload = await this.deserializePayload(result);
+
+		this.#logger(`Loaded payload from bucket ${bucket} and key ${key}`);
 
 		return payload;
 	}
@@ -141,13 +116,9 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		if (byteSize > this.#maxSize) return false;
 		if (payload === null || payload === undefined) return false;
 
-		const thisBucket = this.#bucket();
-		if (!thisBucket) {
-			this.#logger("Invalid bucket", { thisBucket });
-			throw new Error(`Invalid bucket: ${thisBucket}`);
-		}
+		const bucket = this.getBucket();
 
-		this.#logger("Store can store");
+		this.#logger(`Store can store output to bucket ${bucket}`);
 
 		return true;
 	}
@@ -155,23 +126,28 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 	public async store(args: StoreArgs<unknown>): Promise<S3Reference> {
 		this.#logger("Storing payload");
 
-		const bucket = this.#bucket();
-		if (!bucket) {
-			this.#logger("Invalid bucket", { bucket });
-			throw new Error(`Invalid bucket: ${bucket}`);
-		}
+		// const bucket = this.#bucket();
+		// if (!bucket) {
+		// 	this.#logger("Invalid bucket", { bucket });
+		// 	throw new Error(`Invalid bucket: ${bucket}`);
+		// }
 
-		const key = this.#key();
-		if (!key) {
-			this.#logger("Invalid key", { key });
-			throw new Error(`Invalid key: ${key}`);
-		}
+		// const key = this.#key();
+		// if (!key) {
+		// 	this.#logger("Invalid key", { key });
+		// 	throw new Error(`Invalid key: ${key}`);
+		// }
 
 		const { payload } = args;
-		this.#logger("Put object to bucket", { bucket, key });
+		const bucket = this.getBucket();
+		const key = this.getKey();
+		// const config = await this.getConfig();
 
-		const config = this.#config();
-		const client = new S3Client(config);
+		this.#logger(`Storing payload to bucket ${bucket} and key ${key}`);
+
+		// const config = this.#config();
+		const client = this.getClient();
+		const region = await client.config.region();
 
 		try {
 			await client.send(
@@ -186,14 +162,43 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 			throw error;
 		}
 
-		const region =
-			typeof config.region === "function"
-				? await config.region()
-				: config.region;
+		// S3Client resolves the region if it was not provided by the config object
+		// const region = await client.config.region();
+		// typeof client.config.region === "function"
+		// 	? await client.config.region()
+		// 	: client.config.region;
 
-		this.#logger("Stored payload");
+		const reference = formatS3Reference({ bucket, key, region }, this.#format);
+		this.#logger(`Stored payload to reference ${reference}`);
 
-		return formatS3Reference({ bucket, key, region }, this.#format);
+		return reference;
+	}
+
+	private getBucket(): string {
+		const bucket = this.#bucket();
+		if (!bucket) {
+			this.#logger("Invalid bucket", { bucket });
+			throw new Error(`Invalid bucket: ${bucket}`);
+		}
+
+		return bucket;
+	}
+
+	private getKey(): string {
+		const key = this.#key();
+		if (!key) {
+			this.#logger("Invalid key", { key });
+			throw new Error(`Invalid key: ${key}`);
+		}
+
+		return key;
+	}
+
+	private getClient(): S3Client {
+		const config = this.#config();
+		const client = new S3Client(config);
+
+		return client;
 	}
 
 	private serizalizePayload(payload: unknown): Partial<PutObjectCommandInput> {

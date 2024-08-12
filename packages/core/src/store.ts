@@ -184,7 +184,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				return;
 			}
 
-			const { event: input, context } = request;
+			const input = request.event;
 
 			if (!isObject(input)) {
 				logger(`Input must be an object, skipping store`);
@@ -259,7 +259,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 			const selector = storeOpts?.selector ?? ROOT_SELECTOR;
 			const minSize = storeOpts?.minSize ?? Sizes.STEP_FUNCTIONS;
 
-			const { response: output, event: input } = request;
+			const output = request.response;
 
 			if (!isObject(output)) {
 				logger(`Output must be an object, skipping store`);

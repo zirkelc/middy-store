@@ -45,24 +45,6 @@ describe("S3Store.canLoad", () => {
 		expect(s3Store.canLoad({ reference: { store: "" } })).toBe(false);
 		expect(s3Store.canLoad({ reference: { store: "foo" } })).toBe(false);
 	});
-
-	test("should check if bucket match", async () => {
-		const s3Store = new S3Store({ config, bucket, key });
-		const other = "other-bucket";
-
-		expect(s3Store.canLoad({ reference: `arn:aws:s3:::${other}/${key}` })).toBe(
-			false,
-		);
-		expect(
-			s3Store.canLoad({ reference: { ...objectReference, bucket: other } }),
-		).toBe(false);
-		expect(s3Store.canLoad({ reference: `s3://${other}/${key}` })).toBe(false);
-		expect(
-			s3Store.canLoad({
-				reference: `s3://https://${other}.s3.${config.region}.amazonaws.com/${key}`,
-			}),
-		).toBe(false);
-	});
 });
 
 describe("S3Store.load", () => {

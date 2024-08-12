@@ -57,6 +57,36 @@ const s3Store = new S3Store({
 });
 
 describe("S3Store", () => {
+	test("should infer region from S3 client", async () => {
+		process.env.AWS_DEFAULT_REGION = "eu-west-1";
+
+		let store = new S3Store({
+			bucket,
+		});
+
+		// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
+		let client = store["getClient"]();
+		await expect(client.region).resolves.toEqual("eu-west-1");
+
+		store = new S3Store({
+			bucket,
+			config: { region: "eu-central-1" },
+		});
+
+		// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
+		client = store["getClient"]();
+		await expect(client.region).resolves.toEqual("eu-central-1");
+
+		store = new S3Store({
+			bucket,
+			config: () => ({ region: "eu-west-2" }),
+		});
+
+		// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
+		client = store["getClient"]();
+		await expect(client.region).resolves.toEqual("eu-west-2");
+	});
+
 	test("should write and read full payload", async () => {
 		const key = randomUUID();
 		mockKey.mockReturnValue(key);
