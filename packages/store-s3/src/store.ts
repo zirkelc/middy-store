@@ -87,9 +87,6 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 	async load(args: LoadArgs<S3Reference>): Promise<unknown> {
 		this.#logger("Loading payload");
 
-		// const config = this.#config();
-		// const client = new S3Client(config);
-
 		const client = this.getClient();
 
 		const { reference } = args;
@@ -126,28 +123,12 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 	public async store(args: StoreArgs<unknown>): Promise<S3Reference> {
 		this.#logger("Storing payload");
 
-		// const bucket = this.#bucket();
-		// if (!bucket) {
-		// 	this.#logger("Invalid bucket", { bucket });
-		// 	throw new Error(`Invalid bucket: ${bucket}`);
-		// }
-
-		// const key = this.#key();
-		// if (!key) {
-		// 	this.#logger("Invalid key", { key });
-		// 	throw new Error(`Invalid key: ${key}`);
-		// }
-
 		const { payload } = args;
 		const bucket = this.getBucket();
 		const key = this.getKey();
-		// const config = await this.getConfig();
+		const client = this.getClient();
 
 		this.#logger(`Storing payload to bucket ${bucket} and key ${key}`);
-
-		// const config = this.#config();
-		const client = this.getClient();
-		const region = await client.config.region();
 
 		try {
 			await client.send(
@@ -163,10 +144,10 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		}
 
 		// S3Client resolves the region if it was not provided by the config object
-		// const region = await client.config.region();
-		// typeof client.config.region === "function"
-		// 	? await client.config.region()
-		// 	: client.config.region;
+		const region =
+			typeof client.config.region === "function"
+				? await client.config.region()
+				: client.config.region;
 
 		const reference = formatS3Reference({ bucket, key, region }, this.#format);
 		this.#logger(`Stored payload to reference ${reference}`);

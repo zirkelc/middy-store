@@ -58,33 +58,48 @@ const s3Store = new S3Store({
 
 describe("S3Store", () => {
 	test("should infer region from S3 client", async () => {
-		process.env.AWS_DEFAULT_REGION = "eu-west-1";
+		const resolveRegion = async (client: S3Client) => {
+			return typeof client.config.region === "function"
+				? await client.config.region()
+				: client.config.region;
+		};
 
-		let store = new S3Store({
-			bucket,
-		});
+		{
+			process.env.AWS_DEFAULT_REGION = "eu-west-1";
 
-		// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
-		let client = store["getClient"]();
-		await expect(client.region).resolves.toEqual("eu-west-1");
+			const store = new S3Store({
+				bucket,
+			});
 
-		store = new S3Store({
-			bucket,
-			config: { region: "eu-central-1" },
-		});
+			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
+			const client = store["getClient"]();
+			const region = await resolveRegion(client);
+			expect(region).toEqual("eu-west-1");
+		}
 
-		// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
-		client = store["getClient"]();
-		await expect(client.region).resolves.toEqual("eu-central-1");
+		{
+			const store = new S3Store({
+				bucket,
+				config: { region: "eu-central-1" },
+			});
 
-		store = new S3Store({
-			bucket,
-			config: () => ({ region: "eu-west-2" }),
-		});
+			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
+			const client = store["getClient"]();
+			const region = await resolveRegion(client);
+			expect(region).toEqual("eu-central-1");
+		}
 
-		// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
-		client = store["getClient"]();
-		await expect(client.region).resolves.toEqual("eu-west-2");
+		{
+			const store = new S3Store({
+				bucket,
+				config: () => ({ region: "eu-west-2" }),
+			});
+
+			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
+			const client = store["getClient"]();
+			const region = await resolveRegion(client);
+			expect(region).toEqual("eu-west-2");
+		}
 	});
 
 	test("should write and read full payload", async () => {
