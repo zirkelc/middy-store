@@ -18,8 +18,9 @@ const localstack = await new LocalstackContainer(
 ).start();
 
 const bucket = "middy-store-s3";
+const region = "eu-central-1";
 const config: S3ClientConfig = {
-	region: "us-east-1",
+	region,
 	forcePathStyle: true, // If you want to use virtual host addressing of buckets, you can remove `forcePathStyle: true`.
 	endpoint: localstack.getConnectionUri(),
 	credentials: {
@@ -61,45 +62,65 @@ describe("S3Store", () => {
 		{
 			const store = new S3Store({
 				bucket,
-				config: { region: "eu-central-1" },
+				config: { region },
 			});
 
 			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
 			const client = store["getClient"]();
-			const region =
+			const resolvedRegion =
 				typeof client.config.region === "function"
 					? await client.config.region()
 					: client.config.region;
-			expect(region).toEqual("eu-central-1");
+
+			expect(resolvedRegion).toEqual(region);
 		}
 
 		{
 			const store = new S3Store({
 				bucket,
-				config: () => ({ region: "eu-west-2" }),
+				config: () => ({ region }),
 			});
 
 			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
 			const client = store["getClient"]();
-			const region =
+			const resolvedRegion =
 				typeof client.config.region === "function"
 					? await client.config.region()
 					: client.config.region;
-			expect(region).toEqual("eu-west-2");
+
+			expect(resolvedRegion).toEqual(region);
 		}
 
 		{
+			process.env.AWS_DEFAULT_REGION = "eu-central-1";
 			const store = new S3Store({
 				bucket,
 			});
 
 			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
 			const client = store["getClient"]();
-			const region =
+			const resolvedRegion =
 				typeof client.config.region === "function"
 					? await client.config.region()
 					: client.config.region;
-			expect(region).toEqual("eu-west-1");
+
+			expect(resolvedRegion).toEqual(region);
+		}
+
+		{
+			process.env.AWS_REGION = "eu-central-1";
+			const store = new S3Store({
+				bucket,
+			});
+
+			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
+			const client = store["getClient"]();
+			const resolvedRegion =
+				typeof client.config.region === "function"
+					? await client.config.region()
+					: client.config.region;
+
+			expect(resolvedRegion).toEqual(region);
 		}
 	});
 
