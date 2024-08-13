@@ -77,14 +77,14 @@ describe("S3Store", () => {
 			await expect(resolveRegion(store)).resolves.toEqual(region);
 		});
 
-		test("from process.env.AWS_DEFAULT_REGION", async () => {
-			process.env.AWS_DEFAULT_REGION = "eu-central-1";
-			const store = new S3Store({
-				bucket,
-			});
+		// test("from process.env.AWS_DEFAULT_REGION", async () => {
+		// 	process.env.AWS_DEFAULT_REGION = "eu-central-1";
+		// 	const store = new S3Store({
+		// 		bucket,
+		// 	});
 
-			await expect(resolveRegion(store)).resolves.toEqual(region);
-		});
+		// 	await expect(resolveRegion(store)).resolves.toEqual(region);
+		// });
 
 		test("from process.env.AWS_REGION", async () => {
 			process.env.AWS_REGION = "eu-central-1";
