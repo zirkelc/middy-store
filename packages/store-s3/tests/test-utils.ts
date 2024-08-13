@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { Context } from "aws-lambda";
+import type { S3Store } from "../dist/index.js";
 
 export const context: Context = {
 	callbackWaitsForEmptyEventLoop: true,
@@ -26,7 +27,10 @@ export function randomStringInBytes(byteLength: number) {
 	return random;
 }
 
-export const resolveRegion = async (client: S3Client) => {
+export const resolveRegion = async (store: S3Store) => {
+	// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
+	const client = store["getClient"]();
+
 	return typeof client.config.region === "function"
 		? await client.config.region()
 		: client.config.region;

@@ -58,50 +58,42 @@ const s3Store = new S3Store({
 });
 
 describe("S3Store", () => {
-	test("should infer region from S3 client", async () => {
-		{
+	describe("should infer region from S3 client", async () => {
+		test("from config: { region }", async () => {
 			const store = new S3Store({
 				bucket,
 				config: { region },
 			});
 
-			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
-			const client = store["getClient"]();
-			await expect(resolveRegion(client)).resolves.toEqual(region);
-		}
+			await expect(resolveRegion(store)).resolves.toEqual(region);
+		});
 
-		{
+		test("from config: () => { region }", async () => {
 			const store = new S3Store({
 				bucket,
 				config: () => ({ region }),
 			});
 
-			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
-			const client = store["getClient"]();
-			await expect(resolveRegion(client)).resolves.toEqual(region);
-		}
+			await expect(resolveRegion(store)).resolves.toEqual(region);
+		});
 
-		{
+		test("from process.env.AWS_DEFAULT_REGION", async () => {
 			process.env.AWS_DEFAULT_REGION = "eu-central-1";
 			const store = new S3Store({
 				bucket,
 			});
 
-			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
-			const client = store["getClient"]();
-			await expect(resolveRegion(client)).resolves.toEqual(region);
-		}
+			await expect(resolveRegion(store)).resolves.toEqual(region);
+		});
 
-		{
+		test("from process.env.AWS_REGION", async () => {
 			process.env.AWS_REGION = "eu-central-1";
 			const store = new S3Store({
 				bucket,
 			});
 
-			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
-			const client = store["getClient"]();
-			await expect(resolveRegion(client)).resolves.toEqual(region);
-		}
+			await expect(resolveRegion(store)).resolves.toEqual(region);
+		});
 	});
 
 	test("should write and read full payload", async () => {
