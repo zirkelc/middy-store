@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import type { S3Client } from "@aws-sdk/client-s3";
 import type { Context } from "aws-lambda";
 
 export const context: Context = {
@@ -24,3 +25,9 @@ export function randomStringInBytes(byteLength: number) {
 	}
 	return random;
 }
+
+export const resolveRegion = async (client: S3Client) => {
+	return typeof client.config.region === "function"
+		? await client.config.region()
+		: client.config.region;
+};

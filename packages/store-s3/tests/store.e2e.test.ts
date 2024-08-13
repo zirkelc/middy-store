@@ -11,7 +11,7 @@ import { LocalstackContainer } from "@testcontainers/localstack";
 import { MIDDY_STORE, middyStore } from "middy-store";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import { S3Store } from "../dist/index.js";
-import { context, randomStringInBytes } from "./test-utils.js";
+import { context, randomStringInBytes, resolveRegion } from "./test-utils.js";
 
 const localstack = await new LocalstackContainer(
 	"localstack/localstack:3",
@@ -67,12 +67,7 @@ describe("S3Store", () => {
 
 			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
 			const client = store["getClient"]();
-			const resolvedRegion =
-				typeof client.config.region === "function"
-					? await client.config.region()
-					: client.config.region;
-
-			expect(resolvedRegion).toEqual(region);
+			await expect(resolveRegion(client)).resolves.toEqual(region);
 		}
 
 		{
@@ -83,12 +78,7 @@ describe("S3Store", () => {
 
 			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
 			const client = store["getClient"]();
-			const resolvedRegion =
-				typeof client.config.region === "function"
-					? await client.config.region()
-					: client.config.region;
-
-			expect(resolvedRegion).toEqual(region);
+			await expect(resolveRegion(client)).resolves.toEqual(region);
 		}
 
 		{
@@ -99,12 +89,7 @@ describe("S3Store", () => {
 
 			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
 			const client = store["getClient"]();
-			const resolvedRegion =
-				typeof client.config.region === "function"
-					? await client.config.region()
-					: client.config.region;
-
-			expect(resolvedRegion).toEqual(region);
+			await expect(resolveRegion(client)).resolves.toEqual(region);
 		}
 
 		{
@@ -115,12 +100,7 @@ describe("S3Store", () => {
 
 			// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
 			const client = store["getClient"]();
-			const resolvedRegion =
-				typeof client.config.region === "function"
-					? await client.config.region()
-					: client.config.region;
-
-			expect(resolvedRegion).toEqual(region);
+			await expect(resolveRegion(client)).resolves.toEqual(region);
 		}
 	});
 
