@@ -3,12 +3,13 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"start": "tsx index.ts"
 	},
 	"keywords": [],
 	"author": "",
 	"license": "MIT",
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.507.0",
 		"@middy/core": "^5.2.3",
 		"middy-store": "workspace:*",
 		"middy-store-s3": "workspace:*"

@@ -1,9 +1,9 @@
 {
-	"name": "middy-store-example-base64",
+	"name": "middy-store-example-custom",
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"start": "tsx handler"
+		"start": "tsx index.ts"
 	},
 	"keywords": [],
 	"author": "",

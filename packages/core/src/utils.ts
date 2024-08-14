@@ -4,11 +4,17 @@ import toPath from "lodash.topath";
 import type { MiddyStore, Resolveable } from "./store.js";
 import { MIDDY_STORE } from "./store.js";
 
+export const VALUE_NOT_FOUND = Symbol("VALUE_NOT_FOUND");
+
 /**
  * Returns true if the value is an object and not null.
  */
 export function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
+}
+
+export function isString(value: unknown): value is string {
+	return typeof value === "string";
 }
 
 /**
@@ -101,18 +107,25 @@ export function formatPath({ path, key }: FormatPathArgs): string {
 }
 
 type SelectByPathArgs = {
-	source: Record<string, unknown>;
+	source: Record<string, unknown> | string;
 	path: string;
 };
 export function selectByPath({ source, path }: SelectByPathArgs): unknown {
+	if (isString(source)) return source;
+
 	const pathArray = toPath(path);
-	const value = pathArray.length === 0 ? source : get(source, pathArray);
+	const value =
+		pathArray.length === 0 ? source : get(source, pathArray, VALUE_NOT_FOUND);
+
+	if (value === VALUE_NOT_FOUND) {
+		throw new Error(`Path not found at ${path}`);
+	}
 
 	return value;
 }
 
 type ReplaceByPathArgs = {
-	source: Record<string, unknown>;
+	source: Record<string, unknown> | string;
 	value: unknown;
 	path: string;
 };
@@ -127,6 +140,8 @@ export function replaceByPath({
 	value,
 	path,
 }: ReplaceByPathArgs): unknown {
+	if (isString(source)) return value;
+
 	const pathArray = toPath(path);
 
 	// TODO option to clone instead of mutate?
@@ -134,17 +149,27 @@ export function replaceByPath({
 }
 
 type GeneratePathsArgs = {
-	output: Record<string, unknown>;
+	output: Record<string, unknown> | string;
 	selector: string;
 };
 export function* generatePayloadPaths({
 	output,
 	selector,
 }: GeneratePathsArgs): Generator<string> {
+	if (isString(output)) {
+		yield "";
+		return;
+	}
+
 	const isMultiPayload = selector.trim().endsWith("[*]");
 	const path = isMultiPayload ? selector.trim().slice(0, -3) : selector.trim();
 
-	const payload = path.length === 0 ? output : get(output, path);
+	const payload =
+		path.length === 0 ? output : get(output, path, VALUE_NOT_FOUND);
+
+	if (payload === VALUE_NOT_FOUND) {
+		throw new Error(`Path not found at ${path}`);
+	}
 
 	if (isMultiPayload && Array.isArray(payload)) {
 		for (let index = 0; index < payload.length; index++) {

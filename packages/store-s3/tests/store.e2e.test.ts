@@ -102,7 +102,7 @@ describe("S3Store", () => {
 
 		const store = middyStore({
 			stores: [s3Store],
-			storeOptions: {
+			storingOptions: {
 				minSize: 0,
 			},
 		});
@@ -136,7 +136,7 @@ describe("S3Store", () => {
 
 		const store = middyStore({
 			stores: [s3Store],
-			storeOptions: {
+			storingOptions: {
 				selector: "foo.bar",
 				minSize: 0,
 			},
@@ -173,7 +173,7 @@ describe("S3Store", () => {
 
 		const store = middyStore({
 			stores: [s3Store],
-			storeOptions: {
+			storingOptions: {
 				selector: "foo.bar[0]",
 				minSize: 0,
 			},
@@ -214,7 +214,7 @@ describe("S3Store", () => {
 
 		const store = middyStore({
 			stores: [s3Store],
-			storeOptions: {
+			storingOptions: {
 				selector: "foo.bar[*]",
 				minSize: 0,
 			},

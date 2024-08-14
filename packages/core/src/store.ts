@@ -5,6 +5,7 @@ import {
 	generatePayloadPaths,
 	generateReferencePaths,
 	isObject,
+	isString,
 	replaceByPath,
 	selectByPath,
 } from "./utils.js";
@@ -29,6 +30,19 @@ export type Selector<TObject = unknown> = string;
  * Size limits for input and output of AWS services.
  */
 export const Sizes = {
+	/**
+	 * Convert kilobytes to bytes.
+	 */
+	kb: (kb: number) => kb * 1024,
+	/**
+	 * Convert megabytes to bytes.
+	 */
+	mb: (mb: number) => mb * 1024 * 1024,
+	/**
+	 * Convert gigabytes to bytes.
+	 */
+	gb: (gb: number) => gb * 1024 * 1024 * 1024,
+
 	/**
 	 * Always write the output to the store.
 	 */
@@ -74,12 +88,12 @@ export interface StoreInterface<TPayload = unknown, TReference = unknown> {
 // TODO add option to clone instead of mutate input/output
 export interface MiddyStoreOptions<TInput = unknown, TOutput = unknown> {
 	stores: Array<StoreInterface<any, any>>;
-	loadOptions?: LoadOptions<TInput>;
-	storeOptions?: StoreOptions<TInput, TOutput>;
+	loadingOptions?: LoadingOptions<TInput>;
+	storingOptions?: StoringOptions<TInput, TOutput>;
 	logger?: Logger;
 }
 
-export interface LoadOptions<TInput> {
+export interface LoadingOptions<TInput> {
 	/**
 	 * Skip loading the payload from the Store, even if the input contains a reference.
 	 */
@@ -93,7 +107,7 @@ export interface LoadOptions<TInput> {
 	// selector?: Selector<TInput>; // TODO
 }
 
-export interface StoreOptions<TInput, TOutput> {
+export interface StoringOptions<TInput, TOutput> {
 	/**
 	 * Skip storing the payload in the Store, even if the output exceeds the maximum size.
 	 */
@@ -141,11 +155,11 @@ export interface StoreOptions<TInput, TOutput> {
 
 	/**
 	 * Specifies the minimum **byte size** at which the output should be saved in the store.
-	 * The `SizeLimits` object contains predefined sizes for AWS services.
+	 * The `Sizes` object contains predefined sizes for AWS services.
 	 * If the output exceeds the specified size, it will be saved in the store.
 	 * If the output is smaller than the specified size, it will be left untouched.
-	 * If the output should always be saved in the store, set the size to `SizeLimits.ZERO`.
-	 * If the output should never be saved in the store, set the size to `SizeLimits.INFINITY`.
+	 * If the output should always be saved in the store, set the size to `Sizes.ZERO`.
+	 * If the output should never be saved in the store, set the size to `Sizes.INFINITY`.
 	 */
 	minSize?: number;
 }
@@ -173,13 +187,13 @@ const DUMMY_LOGGER = (...args: any[]) => {};
 export const middyStore = <TInput = unknown, TOutput = unknown>(
 	opts: MiddyStoreOptions<TInput, TOutput>,
 ): MiddlewareObj<TInput, TOutput> => {
-	const { stores, loadOptions: loadOpts, storeOptions: storeOpts } = opts;
+	const { stores, loadingOptions, storingOptions } = opts;
 	const logger = opts.logger ?? DUMMY_LOGGER;
 
 	return {
 		before: async (request) => {
 			// setting read to false will skip the store
-			if (loadOpts?.skip) {
+			if (loadingOptions?.skip) {
 				logger(`Loading is disabled, skipping Store`);
 				return;
 			}
@@ -206,7 +220,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				// find a store that can load the reference
 				const store = stores.find((store) => store.canLoad(loadArgs));
 				if (!store) {
-					if (loadOpts?.passThrough) {
+					if (loadingOptions?.passThrough) {
 						logger(`No store was found to load reference, passthrough input`);
 
 						// replace the middy-store reference with the raw reference
@@ -251,18 +265,18 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 
 		after: async (request) => {
 			// setting write to false will skip the store
-			if (storeOpts?.skip) {
+			if (storingOptions?.skip) {
 				logger(`Storing is disabled, skipping Store`);
 				return;
 			}
 
-			const selector = storeOpts?.selector ?? ROOT_SELECTOR;
-			const minSize = storeOpts?.minSize ?? Sizes.STEP_FUNCTIONS;
+			const selector = storingOptions?.selector ?? ROOT_SELECTOR;
+			const minSize = storingOptions?.minSize ?? Sizes.STEP_FUNCTIONS;
 
 			const output = request.response;
 
-			if (!isObject(output)) {
-				logger(`Output must be an object, skipping store`);
+			if (!isObject(output) && !isString(output)) {
+				logger(`Output must be a string or an object, skipping store`);
 				return;
 			}
 
@@ -287,6 +301,10 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				return;
 			}
 
+			if (isString(output) && selector) {
+				logger(`Output is a string, ignoring selector`);
+			}
+
 			let index = 0;
 			for (const path of generatePayloadPaths({ output, selector })) {
 				logger(`Process payload at ${path}`);
@@ -309,7 +327,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				// if no store accepts the response, leave the response untouched
 				const store = stores.find((store) => store.canStore(storeArgs));
 				if (!store) {
-					if (storeOpts?.passThrough) {
+					if (storingOptions?.passThrough) {
 						logger(`No store was found to save payload, passthrough output`);
 						return;
 					}

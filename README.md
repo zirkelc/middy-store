@@ -3,10 +3,10 @@
 `middy-store` is a middleware for Middy that automatically stores and loads payloads from and to a store, like Amazon S3.
 
 ## Installation
-You will need [@middy/core](https://www.npmjs.com/package/@middy/core) >= v5 to use `middy-store`.
+You will need [@middy/core](https://www.npmjs.com/package/@middy/core) >= v5 to use `middy-store`. It is recommended to install `middy-store` and its sub-packages with an exact version to avoid accidental breaking changes.
 
 ```sh
-npm install @middy/core middy-store middy-store-s3 
+npm install --save-exact @middy/core middy-store middy-store-s3 
 ```
 
 ## Motivation
@@ -110,7 +110,7 @@ The returned output from the handler function will contain the reference to the 
 
 By default, `middy-store` will store the entire output of the handler function as a payload in the store. However, you can also select only a part of the output to be stored in the store. This is useful for workflows like AWS Step Functions, where you might need some of the payload for the control flow.
 
-`middy-store` accepts a `selector` property in its `storeOpts` options. The `selector` is a string path to the value in the output that should be stored in the store.
+`middy-store` accepts a `selector` property in its `storingOptions` options. The `selector` is a string path to the value in the output that should be stored in the store.
 
 Here's an example:
 
@@ -127,7 +127,7 @@ export const handler = middy()
   .use(
     middyStore({
       stores: [new S3Store({ /* S3 options */ })],
-      storeOpts: {
+      storingOptions: {
         selector: '', 					// select the entire output as payload
         // selector: 'a'; 			// selects the payload at the path 'a'
         // selector: 'a.b'; 		// selects the payload at the path 'a.b'
@@ -198,20 +198,22 @@ A selector ending with `[*]` like `a.b[*]` acts like an iterator. It will select
 
 `middy-store` will calculate the size of the entire output returned from the handler function. The size is calculated by stringifying the output, if it's not already a string, and calculating the UTF-8 encoded size of the string in bytes. It will then compare this size to the configured size limit in bytes. If the output exceeds the limit, it will store the output or a part of it in the store.
 
-The size can be configured with the `size` property in the `storeOpts` options and must be a number. `middy-store` provides a `MaxSize` helper object with some predefined sizes for Lambda and Step Functions. If `size` is not specified, `middy-store` will use `MaxSize.STEP_FUNCTIONS` with 256KB as the default size limit.
+The size can be configured with the `size` property in the `storingOptions` options and must be a number. `middy-store` provides a `MaxSize` helper object with some predefined sizes for Lambda and Step Functions. If `size` is not specified, `middy-store` will use `Sizes.STEP_FUNCTIONS` with 256KB as the default size limit.
 
 ```ts
 export const handler = middy()
   .use(
     middyStore({
       stores: [new S3Store({ /* S3 options */ })],
-      storeOpts: {
+      storingOptions: {
         minSize: Sizes.STEP_FUNCTIONS, 	// 256KB
         // minSize: Sizes.LAMBDA_SYNC, 	// 6MB
         // minSize: Sizes.LAMBDA_ASYNC, // 256KB
         // minSize: 1024 * 1024, 				// 1MB
         // minSize: Sizes.ZERO, 				// 0B
         // minSize: Sizes.INFINITY, 		// Infinity
+        // minSize: Sizes.kb(512), 			// 512KB
+        // minSize: Sizes.mb(1), 				// 1MB
       }
     })
   )
@@ -224,18 +226,18 @@ await handler({});
 
 The `middyStore()` function accepts the following options:
 
-| Option          | Type                            | Default                   | Description |
-| --------------- | ------------------------------- | ------------------------- | ----------- |
-| `stores`        | `Array<StoreInterface>`         | **Required**              | An array of store implementations to store and load payloads. |
-| `loadOpts`      | `LoadOptions`                   | `undefined`               | The options for loading payloads from the store. |
-| `loadOpts.skip` | `boolean`                       | `undefined`               | Skip loading the payload from the store, even if the input contains a reference. |
-| `loadOpts.passThrough` | `boolean`                | `undefined`               | Pass the input through if no store was found to load the reference. |
-| `storeOpts`     | `StoreOptions`                  | `undefined`               | The options for storing payloads into the store. |
-| `storeOpts.skip` | `boolean`                      | `undefined`               | Skip storing the payload in the store, even if the output exceeds the maximum size. |
-| `storeOpts.passThrough` | `boolean`               | `undefined`               | Pass the output through if no store was found to store the payload. |
-| `storeOpts.selector` | `string`                   | `undefined`               | Selects the payload from the output to store in the store. |
-| `storeOpts.size` | `number`                       | `MaxSize.STEP_FUNCTIONS`  | The maximum output size in bytes before the output is stored in the store. If the output exceeds this size, it will be stored in a store. Defaults to 256KB, the maximum output size for [Step Functions](https://docs.aws.amazon.com/step-functions/latest/dg/limits-overview.html). |
-| `logger`        | `Logger`                        | `undefined`               | The logger function to use for logging. |
+| Option                        | Type                            | Default                   | Description |
+| ----------------------------- | ------------------------------- | ------------------------- | ----------- |
+| `stores`                      | `Array<StoreInterface>`         | **Required**              | An array of store implementations to store and load payloads. |
+| `loadingOptions`              | `LoadingOptions`                | `undefined`               | The options for loading payloads from the store. |
+| `loadingOptions.skip`         | `boolean`                       | `undefined`               | Skip loading the payload from the store, even if the input contains a reference. |
+| `loadingOptions.passThrough`  | `boolean`                       | `undefined`               | Pass the input through if no store was found to load the reference. |
+| `storingOptions`              | `StoringOptions`                | `undefined`               | The options for storing payloads into the store. |
+| `storingOptions.skip`         | `boolean`                       | `undefined`               | Skip storing the payload in the store, even if the output exceeds the maximum size. |
+| `storingOptions.passThrough`  | `boolean`                       | `undefined`               | Pass the output through if no store was found to store the payload. |
+| `storingOptions.selector`     | `string`                        | `undefined`               | Selects the payload from the output to store in the store. |
+| `storingOptions.size`         | `number`                        | `Sizes.STEP_FUNCTIONS`    | The maximum output size in bytes before the output is stored in the store. If the output exceeds this size, it will be stored in a store. Defaults to 256KB, the maximum output size for [Step Functions](https://docs.aws.amazon.com/step-functions/latest/dg/limits-overview.html). |
+| `logger`                      | `Logger`                        | `undefined`               | The logger function to use for logging. |
 
 ## Stores
 
@@ -273,60 +275,71 @@ The `S3Store` accepts the following options:
 
 | Option     | Type                                      | Default                   | Description |
 | ---------- | ----------------------------------------- | ------------------------- | ----------- |
-| `config`   | `S3ClientConfig  \| Fn<S3ClientConfig>`   | `{}`                      | The [S3 client configuration](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-client-s3/Interface/S3ClientConfig/).|
 | `bucket`   | `string \| Fn<string>`                    | **Required**              | The name of the S3 bucket to store the payloads. |
 | `key`      | `string \| Fn<string>`                    | `randomUUID`              | The key to store the payload in the bucket. Defaults to `randomUUID()` from `node:crypto`. |
+| `config`   | `S3ClientConfig  \| Fn<S3ClientConfig>`   | `{}`                      | The [S3 client configuration](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-client-s3/Interface/S3ClientConfig/).|
 | `format`   | `S3ReferenceFormat`                       | `url-s3-global-path`      | The format of the S3 reference: `arn`, `object` or one of the URL formats from [amazon-s3-url](https://www.npmjs.com/package/amazon-s3-url) package. Defaults to S3 URI format `s3://<bucket>/<...keys>`. |
 | `maxSize`  | `number`                                  | `undefined`               | The maximum payload size in bytes that can be stored in S3. If the payload exceeds this size, it will not be stored in S3. |
 | `logger`   | `Logger`                                  | `undefined`               | The logger function to use for logging. |
 
 ### Custom Store
 
-You can create your own store by implementing the `StoreInterface` interface. The store can be implemented as a class or a simple object, as long as it provides the required functions.
+You can create your own Store by implementing the `StoreInterface` interface. The Store can be implemented as a class or a plain object, as long as it provides the required functions.
 
-Here's an example of a store to store and load payloads as base64 encoded [data URLs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs#datatextplainbase64sgvsbg8sifdvcmxkiq):
+Here's an example of a Store to store and load payloads as base64 encoded [data URLs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs#datatextplainbase64sgvsbg8sifdvcmxkiq). The full runnable example can be found in [examples/custom-store](./examples/custom-store).
 
 ```ts
 import { StoreInterface, middyStore } from 'middy-store';
 
-const base64Store: StoreInterface<object, string> = {
-  name: "base64",
-  canLoad: ({ reference }) => {
-    return (
-      typeof reference === "string" &&
-      reference.startsWith("data:text/plain;base64,")
-    );
-  },
-  load: async ({ reference }) => {
-    const base64 = reference.replace("data:text/plain;base64,", "");
-    return JSON.parse(Buffer.from(base64, "base64").toString());
-  },
- 
-
- canStore: ({ payload }) => {
-    return typeof payload === "string";
-  },
-  store: async ({ payload }) => {
-    const base64 = Buffer.from(JSON.stringify(payload)).toString("base64");
-    return `data:text/plain;base64,${base64}`;
-  },
+const base64Store: StoreInterface<string, string> = {
+	name: "base64",
+	canLoad: ({ reference }) => {
+		return (
+			typeof reference === "string" &&
+			reference.startsWith("data:text/plain;base64,")
+		);
+	},
+	load: async ({ reference }) => {
+		const base64 = reference.replace("data:text/plain;base64,", "");
+		return JSON.parse(Buffer.from(base64, "base64").toString());
+	},
+	canStore: ({ payload }) => {
+		return typeof payload === "string";
+	},
+	store: async ({ payload }) => {
+		const base64 = Buffer.from(JSON.stringify(payload)).toString("base64");
+		return `data:text/plain;base64,${base64}`;
+	},
 };
 
 const handler = middy()
-  .use(
-    middyStore({
-      stores: [base64Store],
-    }),
-  )
-  .handler(async (input) => {
-    return {
-      random: randomBytes(1024 * 1024).toString("hex"),
-    };
-  });
+	.use(
+		middyStore({
+			stores: [store],
+			storingOptions: {
+				minSize: Sizes.ZERO, // Always store the data independent of the size
+			}
+		}),
+	)
+	.handler(async (input) => {
+		// Random text with 100 words
+		return `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.`;
+	});
+
+const output = await handler(null, context);
+
+// Prints: { '@middy-store': 'data:text/plain;base64,IkxvcmVtIGlwc3VtIGRvbG9yIHNpdC...' }
+console.log(output);
 ```
 
 ## Packages
 
 - [`middy-store`](./packages/core/): This is the core package of `middy-store` and provides the middleware function `middyStore()` for Middy to use.
 - [`middy-store-s3`](./packages/store-s3/): This package provides a store implementation for Amazon S3. It uses the `@aws-sdk/client-s3` to interact with S3.
+
+## API
+Please be aware that the API is not stable yet and might change in the future. To avoid accidental breaking changes, please pin the version of `middy-store` and its sub-packages in your `package.json` to an exact version.
+
+```sh
+npm install --save-exact middy-store middy-store-s3
 ```
