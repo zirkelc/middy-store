@@ -1,5 +1,13 @@
 # middy-store-s3
 
+## 0.0.4
+
+### Patch Changes
+
+- Allow to store string payloads
+- Updated dependencies
+  - middy-store@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes
