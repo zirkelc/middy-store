@@ -1,0 +1,49 @@
+{
+	"name": "middy-store-dynamodb",
+	"version": "0.0.0",
+	"description": "",
+	"engines": {
+		"node": ">=18"
+	},
+	"type": "module",
+	"module": "./src/index.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./src/index.ts",
+				"default": "./src/index.ts"
+			}
+		}
+	},
+	"files": ["dist"],
+	"publishConfig": {
+		"access": "public",
+		"module": "./dist/index.js",
+		"exports": {
+			".": {
+				"import": {
+					"types": "./dist/index.d.ts",
+					"default": "./dist/index.js"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"build": "tsup src/index.ts --format esm --dts --clean"
+	},
+	"keywords": [],
+	"author": "Chris Cook",
+	"repository": {
+		"type": "git",
+		"url": "github:zirkelc/middy-store",
+		"directory": "packages/store-dynamodb"
+	},
+	"license": "MIT",
+	"dependencies": {
+		"middy-store": "workspace:*"
+	},
+	"devDependencies": {
+		"@middy/core": "^5.2.3",
+		"@smithy/types": "^2.10.1"
+	}
+}
