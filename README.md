@@ -1,9 +1,10 @@
 # Middleware `middy-store` for Middy
 
-`middy-store` is a middleware for Middy that automatically stores and loads payloads from and to a store, like Amazon S3.
+`middy-store` is a middleware for Middy that automatically stores and loads payloads from and to a Store like Amazon S3 or potentially other services.
 
 ## Installation
-You will need [@middy/core](https://www.npmjs.com/package/@middy/core) >= v5 to use `middy-store`. It is recommended to install `middy-store` and its sub-packages with an exact version to avoid accidental breaking changes.
+You will need [@middy/core](https://www.npmjs.com/package/@middy/core) >= v5 to use `middy-store`. 
+Please be aware that the API is not stable yet and might change in the future. To avoid accidental breaking changes, please pin the version of `middy-store` and its sub-packages in your `package.json` to an exact version.
 
 ```sh
 npm install --save-exact @middy/core middy-store middy-store-s3 
@@ -116,9 +117,7 @@ Here's an example:
 
 ```ts
 const output = {
-  a:
-
- {
+  a: {
     b: ['foo', 'bar', 'baz'],
   },
 };
@@ -292,39 +291,39 @@ Here's an example of a Store to store and load payloads as base64 encoded [data 
 import { StoreInterface, middyStore } from 'middy-store';
 
 const base64Store: StoreInterface<string, string> = {
-	name: "base64",
-	canLoad: ({ reference }) => {
-		return (
-			typeof reference === "string" &&
-			reference.startsWith("data:text/plain;base64,")
-		);
-	},
-	load: async ({ reference }) => {
-		const base64 = reference.replace("data:text/plain;base64,", "");
-		return JSON.parse(Buffer.from(base64, "base64").toString());
-	},
-	canStore: ({ payload }) => {
-		return typeof payload === "string";
-	},
-	store: async ({ payload }) => {
-		const base64 = Buffer.from(JSON.stringify(payload)).toString("base64");
-		return `data:text/plain;base64,${base64}`;
-	},
+  name: "base64",
+  canLoad: ({ reference }) => {
+    return (
+      typeof reference === "string" &&
+      reference.startsWith("data:text/plain;base64,")
+    );
+  },
+  load: async ({ reference }) => {
+    const base64 = reference.replace("data:text/plain;base64,", "");
+    return JSON.parse(Buffer.from(base64, "base64").toString());
+  },
+  canStore: ({ payload }) => {
+    return typeof payload === "string";
+  },
+  store: async ({ payload }) => {
+    const base64 = Buffer.from(JSON.stringify(payload)).toString("base64");
+    return `data:text/plain;base64,${base64}`;
+  },
 };
 
 const handler = middy()
-	.use(
-		middyStore({
-			stores: [store],
-			storingOptions: {
-				minSize: Sizes.ZERO, // Always store the data independent of the size
-			}
-		}),
-	)
-	.handler(async (input) => {
-		// Random text with 100 words
-		return `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.`;
-	});
+  .use(
+    middyStore({
+      stores: [store],
+      storingOptions: {
+        minSize: Sizes.ZERO, // Always store the data independent of the size
+      }
+    }),
+  )
+  .handler(async (input) => {
+    // Random text with 100 words
+    return `Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.`;
+  });
 
 const output = await handler(null, context);
 
@@ -336,10 +335,4 @@ console.log(output);
 
 - [`middy-store`](./packages/core/): This is the core package of `middy-store` and provides the middleware function `middyStore()` for Middy to use.
 - [`middy-store-s3`](./packages/store-s3/): This package provides a store implementation for Amazon S3. It uses the `@aws-sdk/client-s3` to interact with S3.
-
-## API
-Please be aware that the API is not stable yet and might change in the future. To avoid accidental breaking changes, please pin the version of `middy-store` and its sub-packages in your `package.json` to an exact version.
-
-```sh
-npm install --save-exact middy-store middy-store-s3
-```
+- [`middy-store-dynamodb`](./packages/store-dynamodb/): Planned, but not yet implemented. This package will provide a store implementation for Amazon DynamoDB.

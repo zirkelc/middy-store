@@ -52,10 +52,10 @@ export const Sizes = {
 	 */
 	INFINITY: Number.POSITIVE_INFINITY,
 	/**
-	 * The maximum size for Step Functions payloads is 256KB.
+	 * The maximum size for Step Functions payloads is 262144 bytes.
 	 * @see https://docs.aws.amazon.com/step-functions/latest/dg/limits-overview.html
 	 */
-	STEP_FUNCTIONS: 256 * 1024 * 1024, // 256KB
+	STEP_FUNCTIONS: 262_144, // 262144 bytes
 	/**
 	 * The maximum size for synchronous Lambda invocations is 6MB.
 	 * @see https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html

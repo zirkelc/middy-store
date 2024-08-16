@@ -26,8 +26,8 @@ type Payload = {
 /**
  * Configure your bucket and region.
  */
-const bucket = "my-bucket";
-const region = "us-east-1";
+const bucket = "my-bucket"; // TODO: Replace with your bucket name
+const region = "us-east-1"; // TODO: Replace with your region
 
 /**
  * Create the bucket if it does not exist.
