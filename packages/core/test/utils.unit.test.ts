@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { MIDDY_STORE } from "../src/store.js";
+import { randomStringInBytes } from "../src/internal.js";
+import { MIDDY_STORE, Sizes } from "../src/store.js";
 import {
 	calculateByteSize,
 	hasReference,
@@ -33,19 +34,41 @@ describe("resolvableFn", () => {
 
 describe("calculateByteSize", () => {
 	test("should calculate the size from string", async () => {
-		const payload = "foo";
-
-		const size = calculateByteSize(payload);
-
-		expect(size).toEqual(Buffer.from(payload).byteLength);
+		expect(calculateByteSize(randomStringInBytes(Sizes.kb(1)))).toEqual(
+			Sizes.kb(1),
+		);
+		expect(calculateByteSize(randomStringInBytes(Sizes.kb(10)))).toEqual(
+			Sizes.kb(10),
+		);
+		expect(calculateByteSize(randomStringInBytes(Sizes.kb(100)))).toEqual(
+			Sizes.kb(100),
+		);
+		expect(calculateByteSize(randomStringInBytes(Sizes.mb(1)))).toEqual(
+			Sizes.mb(1),
+		);
+		expect(calculateByteSize(randomStringInBytes(Sizes.mb(10)))).toEqual(
+			Sizes.mb(10),
+		);
 	});
 
 	test("should calculate the size from object", async () => {
-		const payload = mockPayload;
+		const objSize = Buffer.byteLength(JSON.stringify({ foo: "" }), "utf8");
 
-		const size = calculateByteSize(payload);
-
-		expect(size).toEqual(Buffer.from(JSON.stringify(payload)).byteLength);
+		expect(
+			calculateByteSize({ foo: randomStringInBytes(Sizes.kb(1)) }),
+		).toEqual(Sizes.kb(1) + objSize);
+		expect(
+			calculateByteSize({ foo: randomStringInBytes(Sizes.kb(10)) }),
+		).toEqual(Sizes.kb(10) + objSize);
+		expect(
+			calculateByteSize({ foo: randomStringInBytes(Sizes.kb(100)) }),
+		).toEqual(Sizes.kb(100) + objSize);
+		expect(
+			calculateByteSize({ foo: randomStringInBytes(Sizes.mb(1)) }),
+		).toEqual(Sizes.mb(1) + objSize);
+		expect(
+			calculateByteSize({ foo: randomStringInBytes(Sizes.mb(10)) }),
+		).toEqual(Sizes.mb(10) + objSize);
 	});
 
 	test("should throw an error if unsupported type", async () => {

@@ -1,6 +1,7 @@
 import middy from "@middy/core";
 import type { Context } from "aws-lambda";
 import { beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { randomStringInBytes } from "../src/internal.js";
 import {
 	MIDDY_STORE,
 	type MiddyStoreOptions,
@@ -471,18 +472,58 @@ describe("store", () => {
 		expect(mockStore.store).not.toHaveBeenCalled();
 	});
 
-	test("should passthrough output if size is too small", async () => {
-		const payload = {
-			foo: "bar",
-		};
+	describe("should passthrough output if size is too small", async () => {
+		test("string", async () => {
+			const payload = randomStringInBytes(Sizes.kb(1));
+			const reference = { store: "mock" };
 
-		const handler = useStore({
-			stores: [mockStore],
+			vi.mocked(mockStore.canStore).mockReturnValue(true);
+			vi.mocked(mockStore.store).mockResolvedValue(reference);
+
+			const handler = useStore({
+				stores: [mockStore],
+				storingOptions: {
+					minSize: Sizes.kb(2),
+				},
+			});
+
+			await expect(handler(payload, context)).resolves.toEqual(payload);
+			expect(mockStore.canStore).not.toHaveBeenCalled();
+			expect(mockStore.store).not.toHaveBeenCalled();
+
+			await expect(handler([payload, payload], context)).resolves.toEqual({
+				[MIDDY_STORE]: reference,
+			});
+			expect(mockStore.canStore).toHaveBeenCalled();
+			expect(mockStore.store).toHaveBeenCalled();
 		});
 
-		await expect(handler(payload, context)).resolves.toEqual(payload);
-		expect(mockStore.canStore).not.toHaveBeenCalled();
-		expect(mockStore.store).not.toHaveBeenCalled();
+		test("object", async () => {
+			const payload = { foo: randomStringInBytes(Sizes.kb(1)) };
+			const reference = { store: "mock" };
+
+			vi.mocked(mockStore.canStore).mockReturnValue(true);
+			vi.mocked(mockStore.store).mockResolvedValue(reference);
+
+			const handler = useStore({
+				stores: [mockStore],
+				storingOptions: {
+					minSize: Sizes.kb(2),
+				},
+			});
+
+			await expect(handler(structuredClone(payload), context)).resolves.toEqual(
+				payload,
+			);
+			expect(mockStore.canStore).not.toHaveBeenCalled();
+			expect(mockStore.store).not.toHaveBeenCalled();
+
+			await expect(
+				handler(structuredClone([payload, payload]), context),
+			).resolves.toEqual({ [MIDDY_STORE]: reference });
+			expect(mockStore.canStore).toHaveBeenCalled();
+			expect(mockStore.store).toHaveBeenCalled();
+		});
 	});
 
 	test("should passthrough output if stores are empty", async () => {

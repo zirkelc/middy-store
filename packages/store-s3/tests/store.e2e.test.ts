@@ -9,9 +9,9 @@ import {
 import middy from "@middy/core";
 import { LocalstackContainer } from "@testcontainers/localstack";
 import { MIDDY_STORE, middyStore } from "middy-store";
+import { context, randomStringInBytes } from "middy-store/internal";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import { S3Store } from "../dist/index.js";
-import { context, randomStringInBytes, resolveRegion } from "./test-utils.js";
 
 const localstack = await new LocalstackContainer(
 	"localstack/localstack:3",
@@ -56,6 +56,15 @@ const s3Store = new S3Store({
 	key: mockKey,
 	format: "arn",
 });
+
+const resolveRegion = async (store: S3Store) => {
+	// biome-ignore lint/complexity/useLiteralKeys: use bracket notation to access private properties
+	const client = store["getClient"]();
+
+	return typeof client.config.region === "function"
+		? await client.config.region()
+		: client.config.region;
+};
 
 describe("S3Store", () => {
 	describe("should infer region from S3 client", async () => {

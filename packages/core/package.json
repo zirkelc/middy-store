@@ -8,12 +8,8 @@
 	},
 	"module": "./src/index.ts",
 	"exports": {
-		".": {
-			"import": {
-				"types": "./src/index.ts",
-				"default": "./src/index.ts"
-			}
-		}
+		".": "./src/index.ts",
+		"./internal": "./src/internal.ts"
 	},
 	"files": ["dist"],
 	"publishConfig": {
