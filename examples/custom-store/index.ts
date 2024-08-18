@@ -11,21 +11,25 @@ import { Sizes, type StoreInterface, middyStore } from "middy-store";
 
 const context = {} as Context;
 
-const store: StoreInterface<string, string> = {
+const base64Store: StoreInterface<string, string> = {
 	name: "base64",
+	/* Reference must be a string starting with "data:text/plain;base64," */
 	canLoad: ({ reference }) => {
 		return (
 			typeof reference === "string" &&
 			reference.startsWith("data:text/plain;base64,")
 		);
 	},
+	/* Decode base64 string and parse into object */
 	load: async ({ reference }) => {
 		const base64 = reference.replace("data:text/plain;base64,", "");
-		return JSON.parse(Buffer.from(base64, "base64").toString());
+		return Buffer.from(base64, "base64").toString();
 	},
+	/* Payload must be a string or an object */
 	canStore: ({ payload }) => {
-		return typeof payload === "string";
+		return typeof payload === "string" || typeof payload === "object";
 	},
+	/* Stringify object and encode as base64 string */
 	store: async ({ payload }) => {
 		const base64 = Buffer.from(JSON.stringify(payload)).toString("base64");
 		return `data:text/plain;base64,${base64}`;
@@ -35,7 +39,7 @@ const store: StoreInterface<string, string> = {
 const handler1 = middy()
 	.use(
 		middyStore({
-			stores: [store],
+			stores: [base64Store],
 			storingOptions: {
 				/* Always store the payload */
 				minSize: Sizes.ZERO,
@@ -50,7 +54,7 @@ const handler1 = middy()
 const handler2 = middy<string>()
 	.use(
 		middyStore({
-			stores: [store],
+			stores: [base64Store],
 		}),
 	)
 	.handler(async (input) => {
