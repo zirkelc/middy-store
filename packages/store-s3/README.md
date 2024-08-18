@@ -1,6 +1,9 @@
-# Amazon S3 Store for `middy-store`
+# Amazon S3 Store `middy-store-s3`
 
-This package provides a Store implementation for `middy-store` that uses Amazon S3 to store and load payloads. It uses the `@aws-sdk/client-s3` to interact with Amazon S3.
+This package provides a Store implementation for [`middy-store`](https://github.com/zirkelc/middy-store) that uses Amazon S3 to store and load payloads. It uses the `@aws-sdk/client-s3` to interact with Amazon S3.
+
+## Prerequisites
+This package `middy-store-s3` and its docs only cover the Amazons S3 Store. Please read the docs for [`middy-store`](https://github.com/zirkelc/middy-store) for more information on how to use the `middy-store` package.
 
 ## Install
 

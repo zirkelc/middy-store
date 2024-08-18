@@ -14,7 +14,7 @@
 	"files": ["dist"],
 	"publishConfig": {
 		"access": "public",
-		"module": "./dist/index.cs",
+		"module": "./dist/index.ts",
 		"exports": {
 			".": {
 				"import": {
@@ -25,6 +25,7 @@
 		}
 	},
 	"scripts": {
+		"prepack": "cp ../../README.md ./README.md",
 		"test": "vitest",
 		"build": "tsup ./src/index.ts --format esm --dts --clean"
 	},
