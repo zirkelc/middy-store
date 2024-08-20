@@ -1,6 +1,10 @@
-# Middleware `middy-store` for Middy
+[![CI](https://github.com/zirkelc/middy-store/actions/workflows/ci.yml/badge.svg)](https://github.com/zirkelc/middy-store/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/middy-store)](https://www.npmjs.com/package/middy-store)
+[![npm](https://img.shields.io/npm/dt/middy-store)](https://www.npmjs.com/package/middy-store)
 
-`middy-store` is a middleware for Middy that automatically stores and loads payloads from and to a Store like Amazon S3 or potentially other services.
+# Middleware `middy-store`
+
+`middy-store` is a middleware for Lambda that automatically stores and loads payloads from and to a Store like Amazon S3 or potentially other services.
 
 ## Installation
 You will need [@middy/core](https://www.npmjs.com/package/@middy/core) >= v5 to use `middy-store`. 
