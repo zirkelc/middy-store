@@ -34,9 +34,10 @@
 	},
 	"keywords": [],
 	"author": "Chris Cook",
+	"homepage": "https://github.com/zirkelc/middy-store",
 	"repository": {
 		"type": "git",
-		"url": "github:zirkelc/middy-store",
+		"url": "git+https://github.com/zirkelc/middy-store.git",
 		"directory": "packages/store-s3"
 	},
 	"license": "MIT",
