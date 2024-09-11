@@ -1,5 +1,14 @@
 # middy-store-s3
 
+## 0.0.5
+
+### Patch Changes
+
+- Update readme
+
+- Updated dependencies []:
+  - middy-store@0.0.5
+
 ## 0.0.4
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # middy-store
 
+## 0.0.5
+
+### Patch Changes
+
+- Update readme
+
 ## 0.0.4
 
 ### Patch Changes
