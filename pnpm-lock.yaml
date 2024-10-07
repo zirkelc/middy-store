@@ -17,6 +17,9 @@ importers:
       '@changesets/cli':
         specifier: ^2.27.7
         version: 2.27.7
+      '@changesets/get-github-info':
+        specifier: ^0.6.0
+        version: 0.6.0
       '@testcontainers/localstack':
         specifier: ^10.10.4
         version: 10.10.4
@@ -41,6 +44,9 @@ importers:
       '@vitest/ui':
         specifier: ^2.0.3
         version: 2.0.3(vitest@2.0.3)
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
       husky:
         specifier: ^9.0.11
         version: 9.1.0
@@ -1464,6 +1470,10 @@ packages:
   dockerode@3.3.5:
     resolution: {integrity: sha512-/0YNa3ZDNeLr/tSckmD69+Gq+qVNhvKfAHNeZJBnp7EOP6RGKV8ORrJHkUn20So5wU+xxT7+1n5u8PjHbfjbSA==}
     engines: {node: '>= 8.0'}
+
+  dotenv@16.4.5:
+    resolution: {integrity: sha512-ZmdL2rui+eB2YwhsWzjInR8LldtZHGDoQ1ugH85ppHKwpUHL7j7rN0Ti9NCnGiQbhaZ11FpR+7ao1dNsmduNUg==}
+    engines: {node: '>=12'}
 
   dotenv@8.6.0:
     resolution: {integrity: sha512-IrPdXQsk2BbzvCBGBOTmmSH5SodmqZNt4ERAZDmW4CT+tL8VtvinqywuANaFu4bOMWki16nqf0e4oC0QIaDr/g==}
@@ -4376,6 +4386,8 @@ snapshots:
       tar-fs: 2.0.1
     transitivePeerDependencies:
       - supports-color
+
+  dotenv@16.4.5: {}
 
   dotenv@8.6.0: {}
 

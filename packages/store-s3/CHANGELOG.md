@@ -1,5 +1,11 @@
 # middy-store-s3
 
+## 0.0.6
+
+### Patch Changes
+
+- [#3](https://github.com/zirkelc/middy-store/pull/3) [`3fa55e9`](https://github.com/zirkelc/middy-store/commit/3fa55e921ecbcb12f75099ac03f9608ab77cf223) Thanks [@zirkelc](https://github.com/zirkelc)! - fix: use startsWith instead of equals to check content type
+
 ## 0.0.5
 
 ### Patch Changes
