@@ -1,5 +1,11 @@
 # middy-store-s3
 
+## 0.0.7
+
+### Patch Changes
+
+- [`1023e41`](https://github.com/zirkelc/middy-store/commit/1023e41ce765ed0f69e968595daeae0076e3bf06) Thanks [@zirkelc](https://github.com/zirkelc)! - fix: check content type correctly
+
 ## 0.0.6
 
 ### Patch Changes
