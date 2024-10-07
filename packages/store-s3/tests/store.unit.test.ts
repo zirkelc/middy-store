@@ -62,23 +62,41 @@ describe("S3Store.load", () => {
 			}),
 		);
 
-	test("should deserialize content by type", async () => {
+	describe("should deserialize content by type", () => {
 		const s3Store = new S3Store({ config, bucket, key });
+		test("text/plain", async () => {
+			mockClient("foo", "text/plain");
+			await expect(s3Store.load({ reference: urlReference })).resolves.toEqual(
+				"foo",
+			);
 
-		mockClient("foo", "text/plain");
-		await expect(s3Store.load({ reference: urlReference })).resolves.toEqual(
-			"foo",
-		);
-
-		mockClient(JSON.stringify({ foo: "bar" }), "application/json");
-		await expect(s3Store.load({ reference: urlReference })).resolves.toEqual({
-			foo: "bar",
+			mockClient("foo", "text/plain;charset=utf-8");
+			await expect(s3Store.load({ reference: urlReference })).resolves.toEqual(
+				"foo",
+			);
 		});
 
-		mockClient("foo", "unsupported/type");
-		await expect(async () =>
-			s3Store.load({ reference: urlReference }),
-		).rejects.toThrowError();
+		test("application/json", async () => {
+			mockClient(JSON.stringify({ foo: "bar" }), "application/json");
+			await expect(s3Store.load({ reference: urlReference })).resolves.toEqual({
+				foo: "bar",
+			});
+
+			mockClient(
+				JSON.stringify({ foo: "bar" }),
+				"application/json;charset=utf-8",
+			);
+			await expect(s3Store.load({ reference: urlReference })).resolves.toEqual({
+				foo: "bar",
+			});
+		});
+
+		test("unsupported type", async () => {
+			mockClient("foo", "unsupported/type");
+			await expect(async () =>
+				s3Store.load({ reference: urlReference }),
+			).rejects.toThrowError();
+		});
 	});
 
 	test(`should get object by reference`, async () => {
