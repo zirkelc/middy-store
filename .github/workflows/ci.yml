@@ -44,12 +44,6 @@ jobs:
         with:
           node-version: 20
 
-      # - name: Start LocalStack
-      #   uses: LocalStack/setup-localstack@v0.2.2
-      #   with:
-      #     image-tag: 'latest'
-      #     install-awslocal: 'true'
-
       - name: Build
         run: pnpm build
 
@@ -61,26 +55,3 @@ jobs:
         uses: davelosert/vitest-coverage-report-action@v2
         with:
           vite-config-path: vitest.root.ts
-
-  release:
-    name: Release
-    needs: [lint, test]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }} # Only run on main push
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup and Install
-        id: install
-        uses: ./.github/actions/setup-and-install
-        with:
-          node-version: 20
-
-      - name: Publish
-        id: changesets
-        uses: changesets/action@v1
-        with:
-          publish: pnpm release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
