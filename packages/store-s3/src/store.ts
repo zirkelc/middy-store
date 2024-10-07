@@ -203,14 +203,15 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 	): Promise<unknown> {
 		const { Body, ContentType } = result;
 
-		if (ContentType === "text/plain") {
+		// TODO check for charset encoding
+		if (ContentType?.startsWith("text/plain")) {
 			const payload = await Body?.transformToString("utf-8");
 			if (payload === undefined) throw new Error("Payload is undefined");
 
 			return payload as unknown;
 		}
 
-		if (ContentType === "application/json") {
+		if (ContentType?.startsWith("application/json")) {
 			const payload = await Body?.transformToString("utf-8");
 			if (payload === undefined) throw new Error("Payload is undefined");
 
