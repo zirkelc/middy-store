@@ -208,14 +208,14 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 			const payload = await Body?.transformToString("utf-8");
 			if (payload === undefined) throw new Error("Payload is undefined");
 
-			return payload as unknown;
+			return payload;
 		}
 
 		if (ContentType?.startsWith("application/json")) {
 			const payload = await Body?.transformToString("utf-8");
 			if (payload === undefined) throw new Error("Payload is undefined");
 
-			return JSON.parse(payload) as unknown;
+			return JSON.parse(payload);
 		}
 
 		// TODO handle other content types like 'application/octet-stream'
