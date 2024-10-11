@@ -29,7 +29,7 @@ export default defineConfig({
 				functions: 80,
 				branches: 80,
 			},
-			exclude: ["examples/**", ...coverageConfigDefaults.exclude],
+			exclude: ["**/examples/**", ...coverageConfigDefaults.exclude],
 		},
 	},
 });
