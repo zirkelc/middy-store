@@ -1,5 +1,11 @@
 # middy-store-s3
 
+## 0.0.8
+
+### Patch Changes
+
+- [#5](https://github.com/zirkelc/middy-store/pull/5) [`12acd72`](https://github.com/zirkelc/middy-store/commit/12acd722985be49094cb74865d96e7cb76c537c3) Thanks [@zirkelc](https://github.com/zirkelc)! - feat: allow dynamic keys from payload
+
 ## 0.0.7
 
 ### Patch Changes
