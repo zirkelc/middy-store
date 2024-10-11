@@ -43,17 +43,23 @@ beforeAll(async () => {
 });
 
 const payload = {
+	id: randomUUID(),
 	foo: {
 		bar: [randomStringInBytes(128 * 1024), randomStringInBytes(128 * 1024)],
 	},
 };
 
-const mockKey = vi.fn<() => string>();
+const mockKeyFn = vi.fn<() => string>();
+const mockKey = () => {
+	const key = randomUUID();
+	mockKeyFn.mockReturnValueOnce(key);
+	return key;
+};
 
 const s3Store = new S3Store({
 	config,
 	bucket,
-	key: mockKey,
+	key: mockKeyFn,
 	format: "arn",
 });
 
@@ -105,9 +111,38 @@ describe("S3Store", () => {
 		});
 	});
 
+	test("should generate key from payload", async () => {
+		const s3Store = new S3Store<typeof payload>({
+			config,
+			bucket,
+			key: ({ payload }) => payload.id,
+			format: "arn",
+		});
+
+		const store = middyStore({
+			stores: [s3Store],
+			storingOptions: {
+				minSize: 0,
+			},
+		});
+
+		const writeHandler = middy()
+			.use(store)
+			.handler(async (input: unknown) => {
+				return structuredClone(payload);
+			});
+
+		const output = await writeHandler(null, context);
+
+		expect(output).toBeDefined();
+		expect(output).not.toEqual(payload);
+		expect(output).toEqual({
+			[MIDDY_STORE]: `arn:aws:s3:::${bucket}/${payload.id}`,
+		});
+	});
+
 	test("should write and read full payload", async () => {
-		const key = randomUUID();
-		mockKey.mockReturnValue(key);
+		const key = mockKey();
 
 		const store = middyStore({
 			stores: [s3Store],
@@ -140,8 +175,7 @@ describe("S3Store", () => {
 	});
 
 	test("should write and read partial payload at foo.bar", async () => {
-		const key = randomUUID();
-		mockKey.mockReturnValue(key);
+		const key = mockKey();
 
 		const store = middyStore({
 			stores: [s3Store],
@@ -177,8 +211,7 @@ describe("S3Store", () => {
 	});
 
 	test("should write and read partial payload at foo.bar[0]", async () => {
-		const key = randomUUID();
-		mockKey.mockReturnValue(key);
+		const key = mockKey();
 
 		const store = middyStore({
 			stores: [s3Store],
@@ -217,9 +250,8 @@ describe("S3Store", () => {
 	});
 
 	test("should write and read multiple payloads at foo.bar[*]", async () => {
-		const key = randomUUID();
-		let index = 0;
-		mockKey.mockImplementation(() => `${key}-${index++}`);
+		const key1 = mockKey();
+		const key2 = mockKey();
 
 		const store = middyStore({
 			stores: [s3Store],
@@ -248,8 +280,8 @@ describe("S3Store", () => {
 		expect(output).toEqual({
 			foo: {
 				bar: [
-					{ [MIDDY_STORE]: `arn:aws:s3:::${bucket}/${key}-0` },
-					{ [MIDDY_STORE]: `arn:aws:s3:::${bucket}/${key}-1` },
+					{ [MIDDY_STORE]: `arn:aws:s3:::${bucket}/${key1}` },
+					{ [MIDDY_STORE]: `arn:aws:s3:::${bucket}/${key2}` },
 				],
 			},
 		});
