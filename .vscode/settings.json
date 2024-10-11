@@ -5,7 +5,11 @@
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"editor.formatOnSave": true,
 	"editor.codeActionsOnSave": {
-		"quickfix.biome": "explicit"
-		// "source.organizeImports.biome": "explicit"
+		"quickfix.biome": "explicit",
+		"source.organizeImports.biome": "explicit"
+	},
+	"editor.defaultFormatter": "biomejs.biome",
+	"[typescript]": {
+		"editor.defaultFormatter": "biomejs.biome"
 	}
 }
