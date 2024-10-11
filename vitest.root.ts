@@ -1,5 +1,5 @@
 import GithubActionsReporter from "vitest-github-actions-reporter";
-import { defineConfig } from "vitest/config";
+import { coverageConfigDefaults, defineConfig } from "vitest/config";
 
 // load region from config to prevent error "ConfigError: Missing region in config"
 // https://github.com/aws/aws-sdk-js/pull/1391
@@ -29,6 +29,7 @@ export default defineConfig({
 				functions: 80,
 				branches: 80,
 			},
+			exclude: ["examples/**", ...coverageConfigDefaults.exclude],
 		},
 	},
 });
