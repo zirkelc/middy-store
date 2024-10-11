@@ -20,6 +20,7 @@ import { S3Store } from "middy-store-s3";
 const context = {} as Context;
 
 type Payload = {
+	id: string;
 	random: string;
 };
 
@@ -44,13 +45,13 @@ try {
 	);
 }
 
-const s3Store = new S3Store({
+const s3Store = new S3Store<Payload>({
 	/* Config is optional */
 	config: { region },
 	/* Bucket is required */
 	bucket,
 	/* Key is optional and defaults to randomUUID() */
-	key: () => randomUUID(),
+	key: ({ payload }) => payload.id,
 });
 
 const handler1 = middy()
@@ -61,6 +62,8 @@ const handler1 = middy()
 	)
 	.handler(async (input) => {
 		return {
+			/* Generate a random ID to be used as the key in S3 */
+			id: randomUUID(),
 			/* Generate a random payload of size 512kb */
 			random: randomBytes(Sizes.kb(512) /* 512kb */).toString("hex"),
 		};

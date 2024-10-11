@@ -34,35 +34,74 @@ export interface S3ObjectReference {
 	region?: string;
 }
 
-export interface S3StoreOptions {
+type S3KeyArgs<TPayload> = { payload: TPayload };
+
+/**
+ * The options for the `S3Store`.
+ */
+export interface S3StoreOptions<TPayload = unknown> {
+	/**
+	 * The S3 client configuration.
+	 * Can be a static object or a function that returns the configuration.
+	 */
 	config?: S3ClientConfig | (() => S3ClientConfig);
+	/**
+	 * The name of the bucket to store the payload in.
+	 * Can be a static string or a function that returns the bucket name.
+	 */
 	bucket: string | (() => string);
-	key?: string | (() => string);
+	/**
+	 * The key to store the payload in the bucket.
+	 * Can be a static string or a function that receives the payload as an argument and returns a string.
+	 * Defaults to `randomUUID()`.
+	 *
+	 * @example
+	 * ```typescript
+	 * {
+	 *   key: ({ payload }) => `${payload.id}`
+	 * }
+	 * ```
+	 */
+	key?: string | ((args: S3KeyArgs<TPayload>) => string);
+	/**
+	 * The format of the S3 reference.
+	 * Defaults to the `url-s3-global-path` format: `s3://<bucket>/<...keys>`.
+	 */
 	format?: S3ReferenceFormat;
+	/**
+	 * The maximum payload size in bytes that can be stored in S3.
+	 * Defaults to `Infinity`.
+	 */
 	maxSize?: number;
+	/**
+	 * The logger function to use for logging.
+	 * Defaults to no logging.
+	 */
 	logger?: Logger;
 }
 
 export const STORE_NAME = "s3" as const;
 
-export class S3Store implements StoreInterface<unknown, S3Reference> {
+export class S3Store<TPayload = unknown>
+	implements StoreInterface<TPayload, S3Reference>
+{
 	readonly name = STORE_NAME;
 
 	#config: () => S3ClientConfig;
 	#bucket: () => string;
-	#key: () => string;
+	#key: (args: S3KeyArgs<TPayload>) => string;
 	#logger: (...args: any[]) => void;
 	#maxSize: number;
 	#format: S3ReferenceFormat;
 
-	constructor(opts: S3StoreOptions) {
+	constructor(opts: S3StoreOptions<TPayload>) {
 		this.#maxSize = opts.maxSize ?? Sizes.INFINITY;
 		this.#logger = opts.logger ?? (() => {});
 		this.#format = opts.format ?? "url-s3-global-path";
 
 		this.#config = resolvableFn(opts.config ?? {});
 		this.#bucket = resolvableFn(opts.bucket);
-		this.#key = resolvableFn(opts.key ?? randomUUID);
+		this.#key = resolvableFn(opts.key ?? (() => randomUUID()));
 	}
 
 	canLoad(args: LoadArgs<unknown>): boolean {
@@ -84,7 +123,7 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		}
 	}
 
-	async load(args: LoadArgs<S3Reference>): Promise<unknown> {
+	async load(args: LoadArgs<S3Reference>): Promise<TPayload> {
 		this.#logger("Loading payload");
 
 		const client = this.getClient();
@@ -101,7 +140,7 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 
 		this.#logger(`Loaded payload from bucket ${bucket} and key ${key}`);
 
-		return payload;
+		return payload as TPayload;
 	}
 
 	canStore(args: StoreArgs<unknown>): boolean {
@@ -120,12 +159,12 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		return true;
 	}
 
-	public async store(args: StoreArgs<unknown>): Promise<S3Reference> {
+	public async store(args: StoreArgs<TPayload>): Promise<S3Reference> {
 		this.#logger("Storing payload");
 
 		const { payload } = args;
 		const bucket = this.getBucket();
-		const key = this.getKey();
+		const key = this.getKey({ payload });
 		const client = this.getClient();
 
 		this.#logger(`Storing payload to bucket ${bucket} and key ${key}`);
@@ -165,8 +204,8 @@ export class S3Store implements StoreInterface<unknown, S3Reference> {
 		return bucket;
 	}
 
-	private getKey(): string {
-		const key = this.#key();
+	private getKey(args: S3KeyArgs<TPayload>): string {
+		const key = this.#key(args);
 		if (!key) {
 			this.#logger("Invalid key", { key });
 			throw new Error(`Invalid key: ${key}`);

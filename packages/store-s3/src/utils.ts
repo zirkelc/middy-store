@@ -1,4 +1,3 @@
-import { S3Client } from "@aws-sdk/client-s3";
 import {
 	type S3Object,
 	type S3UrlFormat,

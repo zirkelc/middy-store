@@ -24,7 +24,7 @@ const handler = middy()
         new S3Store({
           config: { region: "us-east-1" },
           bucket: "bucket",
-          key: () => randomUUID(),
+          key: ({ payload }) => randomUUID(),
           format: "arn",
         }),
       ],
