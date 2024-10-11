@@ -202,6 +202,7 @@ describe("S3Store", () => {
 		expect(output).toBeDefined();
 		expect(output).not.toEqual(payload);
 		expect(output).toEqual({
+			id: payload.id,
 			foo: {
 				bar: { [MIDDY_STORE]: `arn:aws:s3:::${bucket}/${key}` },
 			},
@@ -238,6 +239,7 @@ describe("S3Store", () => {
 		expect(output).toBeDefined();
 		expect(output).not.toEqual(payload);
 		expect(output).toEqual({
+			id: payload.id,
 			foo: {
 				bar: [
 					{ [MIDDY_STORE]: `arn:aws:s3:::${bucket}/${key}` },
@@ -278,6 +280,7 @@ describe("S3Store", () => {
 		expect(output).toBeDefined();
 		expect(output).not.toEqual(payload);
 		expect(output).toEqual({
+			id: payload.id,
 			foo: {
 				bar: [
 					{ [MIDDY_STORE]: `arn:aws:s3:::${bucket}/${key1}` },
