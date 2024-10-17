@@ -171,6 +171,11 @@ export function* generatePayloadPaths({
 		throw new Error(`Path not found at ${path}`);
 	}
 
+	// if the payload is a reference, we skip it
+	if (hasReference(payload)) {
+		return;
+	}
+
 	if (isMultiPayload && Array.isArray(payload)) {
 		for (let index = 0; index < payload.length; index++) {
 			// if the item is a reference, we skip it
@@ -195,6 +200,12 @@ export const getReference = <TReference = unknown>(
 	input: unknown,
 ): TReference | undefined => {
 	return hasReference<TReference>(input) ? input[MIDDY_STORE] : undefined;
+};
+
+export const createReference = <TReference = unknown>(
+	reference: TReference,
+): MiddyStore<TReference> => {
+	return { [MIDDY_STORE]: reference };
 };
 
 type GenerateReferencePathsArgs = {

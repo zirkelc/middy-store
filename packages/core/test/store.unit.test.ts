@@ -9,7 +9,7 @@ import {
 	type StoreInterface,
 	middyStore,
 } from "../src/store.js";
-import { calculateByteSize } from "../src/utils.js";
+import { calculateByteSize, createReference } from "../src/utils.js";
 
 const context = {} as Context;
 
@@ -520,10 +520,121 @@ describe("store", () => {
 
 			await expect(
 				handler(structuredClone([payload, payload]), context),
-			).resolves.toEqual({ [MIDDY_STORE]: reference });
+			).resolves.toEqual(createReference(reference));
 			expect(mockStore.canStore).toHaveBeenCalled();
 			expect(mockStore.store).toHaveBeenCalled();
 		});
+	});
+
+	test("should passthrough output if it's a reference", async () => {
+		const reference = { store: "mock" };
+
+		{
+			const payload = createReference(reference);
+			const handler = useStore({
+				stores: [mockStore],
+				loadingOptions: { skip: true },
+				storingOptions: {
+					minSize: Sizes.ZERO,
+				},
+			});
+
+			await expect(handler(payload, context)).resolves.toEqual(payload);
+			expect(mockStore.canStore).not.toHaveBeenCalled();
+			expect(mockStore.store).not.toHaveBeenCalled();
+		}
+
+		{
+			const payload = { a: createReference(reference) };
+			const handler = useStore({
+				stores: [mockStore],
+				loadingOptions: { skip: true },
+				storingOptions: {
+					minSize: Sizes.ZERO,
+					selector: "a",
+				},
+			});
+
+			await expect(handler(payload, context)).resolves.toEqual(payload);
+			expect(mockStore.canStore).not.toHaveBeenCalled();
+			expect(mockStore.store).not.toHaveBeenCalled();
+		}
+
+		{
+			const payload = { a: { b: createReference(reference) } };
+			const handler = useStore({
+				stores: [mockStore],
+				loadingOptions: { skip: true },
+				storingOptions: {
+					minSize: Sizes.ZERO,
+					selector: "a.b",
+				},
+			});
+
+			await expect(handler(payload, context)).resolves.toEqual(payload);
+			expect(mockStore.canStore).not.toHaveBeenCalled();
+			expect(mockStore.store).not.toHaveBeenCalled();
+		}
+
+		{
+			const payload = {
+				a: {
+					b: { c: createReference(reference) },
+				},
+			};
+			const handler = useStore({
+				stores: [mockStore],
+				loadingOptions: { skip: true },
+				storingOptions: {
+					minSize: Sizes.ZERO,
+					selector: "a.b.c",
+				},
+			});
+
+			await expect(handler(payload, context)).resolves.toEqual(payload);
+			expect(mockStore.canStore).not.toHaveBeenCalled();
+			expect(mockStore.store).not.toHaveBeenCalled();
+		}
+
+		{
+			const payload = {
+				a: {
+					b: { c: [createReference(reference), createReference(reference)] },
+				},
+			};
+			const handler = useStore({
+				stores: [mockStore],
+				loadingOptions: { skip: true },
+				storingOptions: {
+					minSize: Sizes.ZERO,
+					selector: "a.b.c[0]",
+				},
+			});
+
+			await expect(handler(payload, context)).resolves.toEqual(payload);
+			expect(mockStore.canStore).not.toHaveBeenCalled();
+			expect(mockStore.store).not.toHaveBeenCalled();
+		}
+
+		{
+			const payload = {
+				a: {
+					b: { c: [createReference(reference), createReference(reference)] },
+				},
+			};
+			const handler = useStore({
+				stores: [mockStore],
+				loadingOptions: { skip: true },
+				storingOptions: {
+					minSize: Sizes.ZERO,
+					selector: "a.b.c[*]",
+				},
+			});
+
+			await expect(handler(payload, context)).resolves.toEqual(payload);
+			expect(mockStore.canStore).not.toHaveBeenCalled();
+			expect(mockStore.store).not.toHaveBeenCalled();
+		}
 	});
 
 	test("should passthrough output if stores are empty", async () => {
@@ -694,7 +805,7 @@ describe("store", () => {
 
 				await expect(
 					handler(structuredClone(payload), context),
-				).resolves.toEqual({ [MIDDY_STORE]: reference });
+				).resolves.toEqual(createReference(reference));
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
 			}
@@ -710,7 +821,7 @@ describe("store", () => {
 
 				await expect(
 					handler(structuredClone(payload), context),
-				).resolves.toEqual({ [MIDDY_STORE]: reference });
+				).resolves.toEqual(createReference(reference));
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
 			}
@@ -727,7 +838,7 @@ describe("store", () => {
 
 				await expect(
 					handler(structuredClone(payload), context),
-				).resolves.toEqual({ [MIDDY_STORE]: reference });
+				).resolves.toEqual(createReference(reference));
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
 			}
@@ -744,7 +855,7 @@ describe("store", () => {
 
 				await expect(
 					handler(structuredClone(payload), context),
-				).resolves.toEqual({ [MIDDY_STORE]: reference });
+				).resolves.toEqual(createReference(reference));
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
 			}
@@ -771,7 +882,7 @@ describe("store", () => {
 
 				await expect(
 					handler(structuredClone(payload), context),
-				).resolves.toEqual({ [MIDDY_STORE]: reference });
+				).resolves.toEqual(createReference(reference));
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
 			}
@@ -787,7 +898,7 @@ describe("store", () => {
 
 				await expect(
 					handler(structuredClone(payload), context),
-				).resolves.toEqual({ [MIDDY_STORE]: reference });
+				).resolves.toEqual(createReference(reference));
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
 			}
@@ -803,7 +914,7 @@ describe("store", () => {
 
 				await expect(
 					handler(structuredClone(payload), context),
-				).resolves.toEqual({ a: { [MIDDY_STORE]: reference } });
+				).resolves.toEqual({ a: createReference(reference) });
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
 			}
@@ -819,7 +930,7 @@ describe("store", () => {
 
 				await expect(
 					handler(structuredClone(payload), context),
-				).resolves.toEqual({ a: { b: { [MIDDY_STORE]: reference } } });
+				).resolves.toEqual({ a: { b: createReference(reference) } });
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
 			}
@@ -835,7 +946,7 @@ describe("store", () => {
 
 				await expect(
 					handler(structuredClone(payload), context),
-				).resolves.toEqual({ a: { b: { c: { [MIDDY_STORE]: reference } } } });
+				).resolves.toEqual({ a: { b: { c: createReference(reference) } } });
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
 			}
@@ -852,7 +963,7 @@ describe("store", () => {
 				await expect(
 					handler(structuredClone(payload), context),
 				).resolves.toEqual({
-					a: { b: { c: [{ [MIDDY_STORE]: reference }, { foo: "bar" }] } },
+					a: { b: { c: [createReference(reference), { foo: "bar" }] } },
 				});
 				expect(mockStore.canStore).toHaveBeenCalledWith({ payload, byteSize });
 				expect(mockStore.store).toHaveBeenCalledWith({ payload, byteSize });
@@ -872,7 +983,7 @@ describe("store", () => {
 				).resolves.toEqual({
 					a: {
 						b: {
-							c: [{ [MIDDY_STORE]: reference }, { [MIDDY_STORE]: reference }],
+							c: [createReference(reference), createReference(reference)],
 						},
 					},
 				});

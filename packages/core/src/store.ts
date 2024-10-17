@@ -1,6 +1,7 @@
 import type { MiddlewareObj } from "@middy/core";
 import {
 	calculateByteSize,
+	createReference,
 	formatPath,
 	generatePayloadPaths,
 	generateReferencePaths,
@@ -68,12 +69,16 @@ export const Sizes = {
 	LAMBDA_ASYNC: 256 * 1024 * 1024, // 256KB,
 };
 
+// TODO add metadata object which will be passed to the store and load methods
+
 export type StoreArgs<TPayload> = {
+	// TODO add output to StoreArgs OR metadata?
 	payload: TPayload;
 	byteSize: number;
 };
 
 export type LoadArgs<TReference> = {
+	// TODO add input to LoadArgs OR metadata?
 	reference: TReference;
 };
 
@@ -105,9 +110,13 @@ export interface LoadingOptions<TInput> {
 	passThrough?: boolean;
 
 	// selector?: Selector<TInput>; // TODO
+
+	// TODO metadata here?
 }
 
 export interface StoringOptions<TInput, TOutput> {
+	// TODO metadata here?
+
 	/**
 	 * Skip storing the payload in the Store, even if the output exceeds the maximum size.
 	 */
@@ -190,7 +199,9 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 	const { stores, loadingOptions, storingOptions } = opts;
 	const logger = opts.logger ?? DUMMY_LOGGER;
 
-	return {
+	// let request: Request<TInput, TOutput> | undefined;
+
+	const middleware: MiddlewareObj<TInput, TOutput> = {
 		before: async (request) => {
 			// setting read to false will skip the store
 			if (loadingOptions?.skip) {
@@ -339,9 +350,9 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				logger(`Found store "${store.name}" to save payload`);
 
 				// store the payload in the store
-				const reference: MiddyStore<unknown> = {
-					[MIDDY_STORE]: await store.store(storeArgs),
-				};
+				const reference: MiddyStore<unknown> = createReference(
+					await store.store(storeArgs),
+				);
 
 				logger(`Saved payload in store "${store.name}"`);
 
@@ -361,4 +372,10 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 			}
 		},
 	};
+
+	// const earlyReturn = (output: TOutput) => {
+	// 	middleware.after!({});
+	// };
+
+	return middleware;
 };

@@ -3,6 +3,7 @@ import { randomStringInBytes } from "../src/internal.js";
 import { MIDDY_STORE, Sizes } from "../src/store.js";
 import {
 	calculateByteSize,
+	createReference,
 	hasReference,
 	isObject,
 	resolvableFn,
@@ -163,4 +164,12 @@ describe("getReference", () => {
 			expect(result).toBe(false);
 		},
 	);
+});
+
+describe("createReference", () => {
+	test("should create a reference", async () => {
+		const reference = "foo";
+		const result = createReference(reference);
+		expect(result).toEqual({ [MIDDY_STORE]: reference });
+	});
 });
