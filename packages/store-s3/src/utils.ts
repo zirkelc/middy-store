@@ -35,6 +35,12 @@ export const isS3Object = (obj: unknown): obj is S3Object => {
 	);
 };
 
+export const isS3Reference = (reference: unknown): reference is S3Reference => {
+	return (
+		isS3Object(reference) || isS3ObjectArn(reference) || isS3Url(reference)
+	);
+};
+
 export const parseS3Reference = (reference: unknown): S3Object => {
 	if (isS3Object(reference)) return reference;
 	if (isS3ObjectArn(reference)) return parseS3ObjectArn(reference);
