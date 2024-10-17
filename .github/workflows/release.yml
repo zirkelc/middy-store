@@ -24,7 +24,7 @@ jobs:
 
       - name: Setup and Install
         id: install
-        uses: ./.github/actions/setup-and-install
+        uses: zirkelc/setup-and-install@v1
         with:
           node-version: 20
 
