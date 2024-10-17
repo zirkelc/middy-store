@@ -1,5 +1,11 @@
 # middy-store
 
+## 0.0.6
+
+### Patch Changes
+
+- [`aad227d`](https://github.com/zirkelc/middy-store/commit/aad227d8a1c7c7cffb27e9ce54aa41fb3ffccb69) Thanks [@zirkelc](https://github.com/zirkelc)! - fix: passthrough output if it's a reference
+
 ## 0.0.5
 
 ### Patch Changes

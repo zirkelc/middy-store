@@ -1,5 +1,14 @@
 # middy-store-s3
 
+## 0.0.9
+
+### Patch Changes
+
+- [`e016cc1`](https://github.com/zirkelc/middy-store/commit/e016cc192deb72f01a25de1574a8f0d740eaa383) Thanks [@zirkelc](https://github.com/zirkelc)! - feat: export `isS3Reference`
+
+- Updated dependencies [[`aad227d`](https://github.com/zirkelc/middy-store/commit/aad227d8a1c7c7cffb27e9ce54aa41fb3ffccb69)]:
+  - middy-store@0.0.6
+
 ## 0.0.8
 
 ### Patch Changes
