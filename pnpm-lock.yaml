@@ -40,7 +40,7 @@ importers:
         version: 20.14.11
       '@vitest/coverage-v8':
         specifier: ^2.0.3
-        version: 2.0.3(vitest@2.0.3(@types/node@20.14.11)(@vitest/ui@2.0.3))
+        version: 2.0.3(vitest@2.0.3)
       '@vitest/ui':
         specifier: ^2.0.3
         version: 2.0.3(vitest@2.0.3)
@@ -70,7 +70,7 @@ importers:
         version: 2.0.3(@types/node@20.14.11)(@vitest/ui@2.0.3)
       vitest-github-actions-reporter:
         specifier: ^0.11.1
-        version: 0.11.1(vitest@2.0.3(@types/node@20.14.11)(@vitest/ui@2.0.3))
+        version: 0.11.1(vitest@2.0.3)
 
   examples/custom-store:
     dependencies:
@@ -120,6 +120,9 @@ importers:
       '@types/lodash.topath':
         specifier: ^4.5.9
         version: 4.5.9
+      ts-essentials:
+        specifier: ^10.0.3
+        version: 10.0.3(typescript@5.5.3)
 
   packages/store-dynamodb:
     dependencies:
@@ -2411,6 +2414,14 @@ packages:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
     hasBin: true
 
+  ts-essentials@10.0.3:
+    resolution: {integrity: sha512-/FrVAZ76JLTWxJOERk04fm8hYENDo0PWSP3YLQKxevLwWtxemGcl5JJEzN4iqfDlRve0ckyfFaOBu4xbNH/wZw==}
+    peerDependencies:
+      typescript: '>=4.5.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   ts-interface-checker@0.1.13:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
 
@@ -4033,7 +4044,7 @@ snapshots:
     dependencies:
       '@types/node': 18.19.41
 
-  '@vitest/coverage-v8@2.0.3(vitest@2.0.3(@types/node@20.14.11)(@vitest/ui@2.0.3))':
+  '@vitest/coverage-v8@2.0.3(vitest@2.0.3)':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 0.2.3
@@ -5374,6 +5385,10 @@ snapshots:
 
   tree-kill@1.2.2: {}
 
+  ts-essentials@10.0.3(typescript@5.5.3):
+    optionalDependencies:
+      typescript: 5.5.3
+
   ts-interface-checker@0.1.13: {}
 
   tslib@2.6.3: {}
@@ -5484,7 +5499,7 @@ snapshots:
       '@types/node': 20.14.11
       fsevents: 2.3.3
 
-  vitest-github-actions-reporter@0.11.1(vitest@2.0.3(@types/node@20.14.11)(@vitest/ui@2.0.3)):
+  vitest-github-actions-reporter@0.11.1(vitest@2.0.3):
     dependencies:
       '@actions/core': 1.10.1
       vitest: 2.0.3(@types/node@20.14.11)(@vitest/ui@2.0.3)

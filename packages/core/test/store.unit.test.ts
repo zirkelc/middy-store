@@ -627,7 +627,7 @@ describe("store", () => {
 				loadingOptions: { skip: true },
 				storingOptions: {
 					minSize: Sizes.ZERO,
-					selector: "a.b.c[*]",
+					selector: "a.b.c.*",
 				},
 			});
 
@@ -771,7 +771,7 @@ describe("store", () => {
 				stores: [mockStore],
 				storingOptions: {
 					minSize: Sizes.ZERO,
-					selector: "x.y.z[*]",
+					selector: "x.y.z.*",
 				},
 			});
 
@@ -974,7 +974,7 @@ describe("store", () => {
 					stores: [mockStore],
 					storingOptions: {
 						minSize: Sizes.ZERO,
-						selector: "a.b.c[*]",
+						selector: "a.b.c.*",
 					},
 				});
 

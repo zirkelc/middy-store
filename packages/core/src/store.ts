@@ -1,4 +1,5 @@
 import type { MiddlewareObj } from "@middy/core";
+import type { Paths } from "ts-essentials";
 import {
 	calculateByteSize,
 	createReference,
@@ -25,7 +26,9 @@ export type Resolveable<TResolved, TArgs extends any[] = []> =
 
 export type Logger = (message?: any, ...optionalParams: any[]) => void;
 
-export type Selector<TObject = unknown> = string;
+export type Selector<TObject> = TObject extends Record<string, unknown>
+	? Paths<TObject, { anyArrayIndexAccessor: "*" }>
+	: string;
 
 /**
  * Size limits for input and output of AWS services.
@@ -138,7 +141,7 @@ export interface StoringOptions<TInput, TOutput> {
 	 * Then, the selected payload will be replaced with a reference to the stored payload.
 	 * It uses Lodash's get function {@link https://lodash.com/docs/4.17.15#get | _.get() } to select the payload from the output.
 	 *
-	 * If the selector ends withs `[*]` and the selected payload is an array,
+	 * If the selector ends withs `.*` and the selected payload is an array,
 	 * then each element of the array will be saved in the store separately.
 	 * That means each element of the array will be replaced with a reference to the stored payload.
 	 *
@@ -150,11 +153,11 @@ export interface StoringOptions<TInput, TOutput> {
 	 * 	},
 	 * };
 	 *
-	 * selector: ''; // selects the entire output as the payload
+	 * selector: undefined; // selects the entire output as the payload
 	 * selector: 'a'; // selects the payload at the path 'a'
 	 * selector: 'a.b'; // selects the payload at the path 'a.b'
-	 * selector: 'a.b[0]'; // selects the payload at the path 'a.b[0]'
-	 * selector: 'a.b[*]'; // selects the payloads at the paths 'a.b[0], 'a.b[1]', 'a.b[2]', etc.
+	 * selector: 'a.b.0'; // selects the payload at the path 'a.b.0'
+	 * selector: 'a.b.*'; // selects the payloads at the paths 'a.b.0', 'a.b.1', 'a.b.2', etc.
 	 * ```
 	 *
 	 * Note: If you use a selector that selects multiple payloads, make sure you configure your store
@@ -173,7 +176,6 @@ export interface StoringOptions<TInput, TOutput> {
 	minSize?: number;
 }
 
-const ROOT_SELECTOR = "";
 const DUMMY_LOGGER = (...args: any[]) => {};
 
 /**
@@ -281,7 +283,7 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				return;
 			}
 
-			const selector = storingOptions?.selector ?? ROOT_SELECTOR;
+			const selector = storingOptions?.selector;
 			const minSize = storingOptions?.minSize ?? Sizes.STEP_FUNCTIONS;
 
 			const output = request.response;
