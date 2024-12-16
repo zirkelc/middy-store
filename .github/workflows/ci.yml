@@ -74,4 +74,4 @@ jobs:
         run: pnpm build
 
       - name: Publish Preview
-        run: npx pkg-pr-new publish './packages/*'
+        run: npx pkg-pr-new publish --pnpm --packageManager=pnpm './packages/*'
