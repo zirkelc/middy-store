@@ -41,14 +41,14 @@
 	"dependencies": {
 		"lodash.get": "^4.4.2",
 		"lodash.set": "^4.3.2",
-		"lodash.topath": "^4.5.2"
+		"lodash.topath": "^4.5.2",
+		"ts-essentials": "^10.0.3"
 	},
 	"devDependencies": {
 		"@middy/core": "^5.2.3",
 		"@types/lodash.get": "^4.4.9",
 		"@types/lodash.set": "^4.3.9",
-		"@types/lodash.topath": "^4.5.9",
-		"ts-essentials": "^10.0.3"
+		"@types/lodash.topath": "^4.5.9"
 	},
 	"peerDependencies": {
 		"@middy/core": ">= 5.0.0"
