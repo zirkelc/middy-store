@@ -1,5 +1,12 @@
 # middy-store-s3
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [[`eb03beb`](https://github.com/zirkelc/middy-store/commit/eb03beba07ed226cd831a5e8e04f9b14a5248ff6)]:
+  - middy-store@0.1.0
+
 ## 0.0.9
 
 ### Patch Changes
