@@ -1,5 +1,11 @@
 # middy-store
 
+## 0.1.1
+
+### Patch Changes
+
+- [`3bf3aae`](https://github.com/zirkelc/middy-store/commit/3bf3aaee12586885ec05108045df0996cd9be376) Thanks [@zirkelc](https://github.com/zirkelc)! - fix: use `any` instead of `unknown` for path completion
+
 ## 0.1.0
 
 ### Minor Changes
