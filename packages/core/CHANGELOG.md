@@ -1,5 +1,11 @@
 # middy-store
 
+## 0.1.0
+
+### Minor Changes
+
+- [#8](https://github.com/zirkelc/middy-store/pull/8) [`eb03beb`](https://github.com/zirkelc/middy-store/commit/eb03beba07ed226cd831a5e8e04f9b14a5248ff6) Thanks [@zirkelc](https://github.com/zirkelc)! - feat: add path autocompletion for selectors
+
 ## 0.0.6
 
 ### Patch Changes
