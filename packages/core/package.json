@@ -41,7 +41,8 @@
 	"dependencies": {
 		"lodash.get": "^4.4.2",
 		"lodash.set": "^4.3.2",
-		"lodash.topath": "^4.5.2"
+		"lodash.topath": "^4.5.2",
+		"ts-essentials": "^10.0.3"
 	},
 	"devDependencies": {
 		"@middy/core": "^5.2.3",

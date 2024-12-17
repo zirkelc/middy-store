@@ -195,8 +195,8 @@ export const handler = middy()
         selector: '',          /* select the entire output as payload */
         // selector: 'a';      /* selects the payload at the path 'a' */
         // selector: 'a.b';    /* selects the payload at the path 'a.b' */
-        // selector: 'a.b[0]'; /* selects the payload at the path 'a.b[0]' */
-        // selector: 'a.b[*]'; /* selects the payloads at the paths 'a.b[0]', 'a.b[1]', 'a.b[2]', etc. */
+        // selector: 'a.b.0'; /* selects the payload at the path 'a.b[0]' */
+        // selector: 'a.b.*'; /* selects the payloads at the paths 'a.b[0]', 'a.b[1]', 'a.b[2]', etc. */
       }
     })
   )
@@ -243,10 +243,10 @@ The selectors `a`, `a.b`, or `a.b[0]` select the value at the path and store onl
 }
 ```
 
-A selector ending with `[*]` like `a.b[*]` acts like an iterator. It will select the array at `a.b` and store each element in the array in the Store separately. Each element will be replaced with the reference to the stored payload.
+A selector ending with `.*` like `a.b.*` acts like an iterator. It will select the array at `a.b` and store each element in the array in the Store separately. Each element will be replaced with the reference to the stored payload.
 
 ```ts
-/* selector: 'a.b[*]' */
+/* selector: 'a.b.*' */
 {
   a: {
     b: [

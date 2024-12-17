@@ -97,11 +97,7 @@ type FormatPathArgs = {
 export function formatPath({ path, key }: FormatPathArgs): string {
 	let newPath = path.trim();
 
-	if (typeof key === "number") {
-		newPath += `[${key}]`;
-	} else {
-		newPath += newPath.length === 0 ? `${key}` : `.${key}`;
-	}
+	newPath += newPath.length === 0 ? `${key}` : `.${key}`;
 
 	return newPath;
 }
@@ -150,19 +146,32 @@ export function replaceByPath({
 
 type GeneratePathsArgs = {
 	output: Record<string, unknown> | string;
-	selector: string;
+	selector?: string;
 };
 export function* generatePayloadPaths({
 	output,
-	selector,
+	selector = "",
 }: GeneratePathsArgs): Generator<string> {
 	if (isString(output)) {
 		yield "";
 		return;
 	}
 
-	const isMultiPayload = selector.trim().endsWith("[*]");
-	const path = isMultiPayload ? selector.trim().slice(0, -3) : selector.trim();
+	let path = selector.trim();
+	let isMultiPayload = false;
+
+	if (selector.trim().endsWith("[*]")) {
+		// old logic
+		console.warn(
+			"[middy-store] The selector `[*]` is deprecated. Please use `.*` instead.",
+		);
+		path = path.slice(0, -3);
+		isMultiPayload = true;
+	} else if (selector.trim().endsWith(".*")) {
+		// new logic
+		path = path.slice(0, -2);
+		isMultiPayload = true;
+	}
 
 	const payload =
 		path.length === 0 ? output : get(output, path, VALUE_NOT_FOUND);
