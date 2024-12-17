@@ -26,7 +26,7 @@ export type Resolveable<TResolved, TArgs extends any[] = []> =
 
 export type Logger = (message?: any, ...optionalParams: any[]) => void;
 
-export type Selector<TObject> = TObject extends Record<string, unknown>
+export type Selector<TObject> = TObject extends Record<string, any>
 	? Paths<TObject, { anyArrayIndexAccessor: "*" }>
 	: string;
 
