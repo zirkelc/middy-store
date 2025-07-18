@@ -6,6 +6,7 @@ import {
 	type S3ClientConfig,
 	waitUntilBucketExists,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import middy from "@middy/core";
 import { LocalstackContainer } from "@testcontainers/localstack";
 import { MIDDY_STORE, middyStore } from "middy-store";
@@ -71,6 +72,70 @@ const resolveRegion = async (store: S3Store) => {
 		? await client.config.region()
 		: client.config.region;
 };
+
+// Map to store original localhost URLs and their S3 counterparts
+const urlMapping = new Map<string, string>();
+
+// Helper function to transform localhost URL to S3 URL format
+const transformToS3Url = (localhostUrl: string): string => {
+	try {
+		const url = new URL(localhostUrl);
+		const pathParts = url.pathname.split("/").filter(Boolean);
+		if (pathParts.length >= 2) {
+			const [bucket, ...keyParts] = pathParts;
+			const key = keyParts.join("/");
+
+			// Create S3 URL format: https://bucket.s3.region.amazonaws.com/key?...
+			const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${key}${url.search}`;
+
+			// Store mapping for later use in fetch
+			urlMapping.set(s3Url, localhostUrl);
+
+			return s3Url;
+		}
+	} catch (error) {
+		// If URL parsing fails, return original
+		return localhostUrl;
+	}
+	return localhostUrl;
+};
+
+// Mock getSignedUrl to return S3-formatted URLs
+vi.mock("@aws-sdk/s3-request-presigner", async () => {
+	const actual = await vi.importActual<
+		typeof import("@aws-sdk/s3-request-presigner")
+	>("@aws-sdk/s3-request-presigner");
+	return {
+		...actual,
+		getSignedUrl: vi
+			.fn()
+			.mockImplementation(async (client, command, options) => {
+				// Call the real getSignedUrl function
+				const localhostUrl = await actual.getSignedUrl(
+					client,
+					command,
+					options,
+				);
+				// Transform to S3 format
+				return transformToS3Url(localhostUrl);
+			}),
+	};
+});
+
+// Mock global fetch to redirect S3 URLs back to localhost
+const originalFetch = global.fetch;
+global.fetch = vi.fn().mockImplementation(async (url, ...args) => {
+	const urlStr = typeof url === "string" ? url : url.toString();
+
+	const localhostUrl = urlMapping.get(urlStr);
+	// If this is a mapped S3 URL, use the original localhost URL
+	if (localhostUrl) {
+		return originalFetch(localhostUrl, ...args);
+	}
+
+	// Otherwise, use the original URL
+	return originalFetch(url, ...args);
+});
 
 describe("S3Store", () => {
 	describe("should infer region from S3 client", async () => {
@@ -251,14 +316,14 @@ describe("S3Store", () => {
 		await readHandler(output, context);
 	});
 
-	test("should write and read multiple payloads at foo.bar[*]", async () => {
+	test("should write and read multiple payloads at foo.bar.*", async () => {
 		const key1 = mockKey();
 		const key2 = mockKey();
 
 		const store = middyStore({
 			stores: [s3Store],
 			storingOptions: {
-				selector: "foo.bar[*]",
+				selector: "foo.bar.*",
 				minSize: 0,
 			},
 		});
@@ -289,6 +354,96 @@ describe("S3Store", () => {
 			},
 		});
 
+		await readHandler(output, context);
+	});
+
+	test("should write and read full payload with presigned URLs", async () => {
+		const key = mockKey();
+
+		const presignedS3Store = new S3Store({
+			config,
+			bucket,
+			key: mockKeyFn,
+			presigned: true, // Enable presigned URLs
+		});
+
+		const store = middyStore({
+			stores: [presignedS3Store],
+			storingOptions: {
+				minSize: 0,
+			},
+		});
+
+		const writeHandler = middy()
+			.use(store)
+			.handler(async (input: unknown) => {
+				return structuredClone(payload);
+			});
+
+		const readHandler = middy()
+			.use(store)
+			.handler(async (input: unknown) => {
+				expect(input).toEqual(payload);
+			});
+
+		const output = await writeHandler(null, context);
+
+		expect(output).toBeDefined();
+		expect(output).not.toEqual(payload);
+
+		// The output should contain a presigned URL instead of an ARN
+		const presignedUrlReference = output[MIDDY_STORE];
+		expect(presignedUrlReference).toMatch(
+			/^https:\/\/.*\.s3\..*\.amazonaws\.com\/.*\?.*X-Amz-Signature=.*$/,
+		);
+		expect(presignedUrlReference).toMatch(/X-Amz-Expires=3600/); // Default 1 hour expiration
+
+		// Verify the presigned URL can be loaded
+		await readHandler(output, context);
+	});
+
+	test("should write and read payload with custom presigned URL expiration", async () => {
+		const key = mockKey();
+
+		const presignedS3Store = new S3Store({
+			config,
+			bucket,
+			key: mockKeyFn,
+			presigned: { expiresIn: 7200 }, // 2 hours
+		});
+
+		const store = middyStore({
+			stores: [presignedS3Store],
+			storingOptions: {
+				minSize: 0,
+			},
+		});
+
+		const writeHandler = middy()
+			.use(store)
+			.handler(async (input: unknown) => {
+				return structuredClone(payload);
+			});
+
+		const readHandler = middy()
+			.use(store)
+			.handler(async (input: unknown) => {
+				expect(input).toEqual(payload);
+			});
+
+		const output = await writeHandler(null, context);
+
+		expect(output).toBeDefined();
+		expect(output).not.toEqual(payload);
+
+		// The output should contain a presigned URL with custom expiration
+		const presignedUrlReference = output[MIDDY_STORE];
+		expect(presignedUrlReference).toMatch(
+			/^https?:\/\/.*\?.*X-Amz-Signature=.*$/,
+		);
+		expect(presignedUrlReference).toMatch(/X-Amz-Expires=7200/); // 2 hours
+
+		// Verify the presigned URL can be loaded
 		await readHandler(output, context);
 	});
 });

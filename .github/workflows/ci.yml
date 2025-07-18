@@ -48,6 +48,9 @@ jobs:
         run: pnpm build
 
       - name: Test
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
         run: pnpm test:ci
 
       - name: Coverage

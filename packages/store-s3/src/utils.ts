@@ -35,15 +35,44 @@ export const isS3Object = (obj: unknown): obj is S3Object => {
 	);
 };
 
+export const isS3PresignedUrl = (url: unknown): url is string => {
+	if (isS3Url(url)) {
+		try {
+			const parsedUrl = new URL(url);
+
+			return (
+				parsedUrl.protocol === "https:" &&
+				parsedUrl.searchParams.has("X-Amz-Signature")
+			);
+		} catch {
+			return false;
+		}
+	}
+
+	return false;
+};
+
+export const parseS3PresignedUrl = (url: string): S3Object => {
+	const parsedUrl = new URL(url);
+	// Remove the query string from the pathname
+	return parseS3Url(
+		`${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}`,
+	);
+};
+
 export const isS3Reference = (reference: unknown): reference is S3Reference => {
 	return (
-		isS3Object(reference) || isS3ObjectArn(reference) || isS3Url(reference)
+		isS3Object(reference) ||
+		isS3ObjectArn(reference) ||
+		isS3Url(reference) ||
+		isS3PresignedUrl(reference)
 	);
 };
 
 export const parseS3Reference = (reference: unknown): S3Object => {
 	if (isS3Object(reference)) return reference;
 	if (isS3ObjectArn(reference)) return parseS3ObjectArn(reference);
+	if (isS3PresignedUrl(reference)) return parseS3PresignedUrl(reference);
 	if (isS3Url(reference)) return parseS3Url(reference);
 
 	throw new Error(`Invalid reference: ${reference}`);

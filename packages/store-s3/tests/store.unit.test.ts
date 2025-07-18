@@ -28,6 +28,8 @@ const objectReference: S3ObjectReference = {
 	key,
 };
 
+const presignedUrlReference = `https://${bucket}.s3.${region}.amazonaws.com/${key}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20230101%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20230101T000000Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=example-signature`;
+
 beforeAll(() => {
 	vi.resetAllMocks();
 });
@@ -40,6 +42,7 @@ describe("S3Store.canLoad", () => {
 		expect(s3Store.canLoad({ reference: objectReference })).toBe(true);
 		expect(s3Store.canLoad({ reference: urlReference })).toBe(true);
 		expect(s3Store.canLoad({ reference: urlRegionalReference })).toBe(true);
+		expect(s3Store.canLoad({ reference: presignedUrlReference })).toBe(true);
 
 		expect(s3Store.canLoad(null as any)).toBe(false);
 		expect(s3Store.canLoad(undefined as any)).toBe(false);
@@ -143,6 +146,44 @@ describe("S3Store.load", () => {
 			Bucket: "bucket",
 			Key: "key",
 		});
+	});
+
+	test("should load from presigned URL", async () => {
+		const s3Store = new S3Store({ config, bucket, key });
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			headers: {
+				get: vi.fn().mockReturnValue("application/json"),
+			},
+			text: vi.fn().mockResolvedValue(JSON.stringify({ foo: "bar" })),
+		});
+
+		// Mock global fetch
+		vi.stubGlobal("fetch", mockFetch);
+
+		const result = await s3Store.load({ reference: presignedUrlReference });
+
+		expect(result).toEqual({ foo: "bar" });
+		expect(mockFetch).toHaveBeenCalledWith(presignedUrlReference);
+
+		vi.unstubAllGlobals();
+	});
+
+	test("should handle presigned URL fetch error", async () => {
+		const s3Store = new S3Store({ config, bucket, key });
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 403,
+			statusText: "Forbidden",
+		});
+
+		vi.stubGlobal("fetch", mockFetch);
+
+		await expect(
+			s3Store.load({ reference: presignedUrlReference }),
+		).rejects.toThrowError("Failed to fetch presigned URL: 403 Forbidden");
+
+		vi.unstubAllGlobals();
 	});
 });
 
@@ -362,6 +403,56 @@ describe("S3Store.store", () => {
 			).resolves.toEqual(
 				`s3://s3.${config.region}.amazonaws.com/${bucket}/${key}`,
 			);
+		});
+	});
+
+	describe("presigned URLs", () => {
+		const mockClient = () =>
+			vi
+				.spyOn(S3Client.prototype, "send")
+				.mockImplementation(() => Promise.resolve({}));
+
+		test("should generate presigned URL when enabled", async () => {
+			const byteSize = 1_000;
+			const payload = { foo: "bar" };
+
+			mockClient();
+
+			const s3Store = new S3Store({
+				config,
+				bucket,
+				key,
+				presigned: true,
+			});
+
+			const result = await s3Store.store({ byteSize, payload });
+
+			// Just check that it's a valid presigned URL format
+			expect(result).toMatch(
+				/^https:\/\/.*\.s3\..*\.amazonaws\.com\/.*\?.*X-Amz-Signature=.*$/,
+			);
+		});
+
+		test("should use expiration from object config", async () => {
+			const byteSize = 1_000;
+			const payload = { foo: "bar" };
+
+			mockClient();
+
+			const s3Store = new S3Store({
+				config,
+				bucket,
+				key,
+				presigned: { expiresIn: 1800 }, // 30 minutes
+			});
+
+			const result = await s3Store.store({ byteSize, payload });
+
+			// Check that it's a valid presigned URL format and contains the correct expiration
+			expect(result).toMatch(
+				/^https:\/\/.*\.s3\..*\.amazonaws\.com\/.*\?.*X-Amz-Signature=.*$/,
+			);
+			expect(result).toMatch(/X-Amz-Expires=1800/);
 		});
 	});
 });

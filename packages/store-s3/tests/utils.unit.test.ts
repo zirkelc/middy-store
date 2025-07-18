@@ -5,7 +5,9 @@ import {
 	formatS3Reference,
 	isS3Object,
 	isS3ObjectArn,
+	isS3PresignedUrl,
 	parseS3ObjectArn,
+	parseS3PresignedUrl,
 	parseS3Reference,
 } from "../src/utils.js";
 
@@ -100,6 +102,16 @@ describe("parseS3Reference", () => {
 		});
 	});
 
+	test("should parse presigned S3 URL reference", () => {
+		const reference =
+			"https://bucket.s3.us-east-1.amazonaws.com/foo/bar?X-Amz-Signature=example";
+		expect(parseS3Reference(reference)).toEqual({
+			bucket: "bucket",
+			key: "foo/bar",
+			region: "us-east-1",
+		});
+	});
+
 	test.each([
 		...nonStringValues,
 		{ bucket: "bucket" },
@@ -129,5 +141,37 @@ describe("formatS3Reference", () => {
 		expect(formatS3Reference(obj, "url-s3-global-path")).toBe(
 			`s3://${bucket}/${key}`,
 		);
+	});
+});
+
+describe("isS3PresignedUrl", () => {
+	test.each([
+		"https://bucket.s3.us-east-1.amazonaws.com/key?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=example",
+		"https://s3.us-east-1.amazonaws.com/bucket/key?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=example",
+	])("should return true for valid presigned URL: %s", (url) => {
+		expect(isS3PresignedUrl(url)).toBe(true);
+	});
+
+	test.each([
+		...nonStringValues,
+		"https://bucket.s3.us-east-1.amazonaws.com/key", // No signature
+		"https://example.com/key?X-Amz-Signature=example", // Not S3 domain
+		"s3://bucket/key", // Not HTTP(S)
+		"invalid-url",
+	])("should return false for invalid presigned URL: %s", (url) => {
+		expect(isS3PresignedUrl(url)).toBe(false);
+	});
+});
+
+describe("parseS3PresignedUrl", () => {
+	test.each([
+		"https://bucket.s3.us-east-1.amazonaws.com/foo/bar?X-Amz-Signature=example",
+		"https://s3.us-east-1.amazonaws.com/bucket/foo/bar?X-Amz-Signature=example",
+	])("should parse a valid presigned URL: %s", (url) => {
+		expect(parseS3PresignedUrl(url)).toEqual({
+			bucket: "bucket",
+			key: "foo/bar",
+			region: "us-east-1",
+		});
 	});
 });
