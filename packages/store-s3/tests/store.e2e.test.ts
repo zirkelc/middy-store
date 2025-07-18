@@ -14,9 +14,6 @@ import { context, randomStringInBytes } from "middy-store/internal";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import { S3Store } from "../dist/index.js";
 
-process.env.AWS_ACCESS_KEY_ID = "test";
-process.env.AWS_SECRET_ACCESS_KEY = "test";
-
 const localstack = await new LocalstackContainer(
 	"localstack/localstack:3",
 ).start();
