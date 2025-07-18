@@ -1,5 +1,11 @@
 # middy-store-s3
 
+## 0.1.0
+
+### Minor Changes
+
+- [#12](https://github.com/zirkelc/middy-store/pull/12) [`09b6019`](https://github.com/zirkelc/middy-store/commit/09b601965ef2c6e99d7b67a0f9a18e93a9d06a20) Thanks [@zirkelc](https://github.com/zirkelc)! - feat: support presigned S3 URL as reference
+
 ## 0.0.11
 
 ### Patch Changes
