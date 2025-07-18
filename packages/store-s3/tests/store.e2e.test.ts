@@ -105,7 +105,9 @@ const transformToS3Url = (localhostUrl: string): string => {
 
 // Mock getSignedUrl to return S3-formatted URLs
 vi.mock("@aws-sdk/s3-request-presigner", async () => {
-	const actual = await vi.importActual("@aws-sdk/s3-request-presigner");
+	const actual = await vi.importActual<
+		typeof import("@aws-sdk/s3-request-presigner")
+	>("@aws-sdk/s3-request-presigner");
 	return {
 		...actual,
 		getSignedUrl: vi
