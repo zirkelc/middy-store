@@ -7,6 +7,7 @@ import {
 	S3Client,
 	type S3ClientConfig,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { S3UrlFormat } from "amazon-s3-url";
 import {
 	type LoadArgs,
@@ -17,13 +18,23 @@ import {
 	isObject,
 	resolvableFn,
 } from "middy-store";
-import { formatS3Reference, parseS3Reference } from "./utils.js";
+import {
+	formatS3Reference,
+	isS3PresignedUrl,
+	parseS3Reference,
+} from "./utils.js";
 
-export type S3Reference = S3ArnReference | S3UriReference | S3ObjectReference;
+export type S3Reference =
+	| S3ArnReference
+	| S3UriReference
+	| S3ObjectReference
+	| S3PresignedUrlReference;
 
 export type S3ArnReference = string;
 
 export type S3UriReference = string;
+
+export type S3PresignedUrlReference = string;
 
 export type S3ReferenceFormat = "arn" | "object" | `url-${S3UrlFormat}`;
 
@@ -78,6 +89,13 @@ export interface S3StoreOptions<TPayload = unknown> {
 	 * Defaults to no logging.
 	 */
 	logger?: Logger;
+	/**
+	 * Enable presigned URLs for stored payloads.
+	 * - `false` or `undefined`: No presigning (default)
+	 * - `true`: Use default expiration (3600 seconds)
+	 * - `object`: Explicit configuration with `expiresIn`
+	 */
+	presigned?: boolean | { expiresIn: number };
 }
 
 export const STORE_NAME = "s3" as const;
@@ -93,11 +111,13 @@ export class S3Store<TPayload = unknown>
 	#logger: (...args: any[]) => void;
 	#maxSize: number;
 	#format: S3ReferenceFormat;
+	#presigned: boolean | { expiresIn: number };
 
 	constructor(opts: S3StoreOptions<TPayload>) {
 		this.#maxSize = opts.maxSize ?? Sizes.INFINITY;
 		this.#logger = opts.logger ?? (() => {});
 		this.#format = opts.format ?? "url-s3-global-path";
+		this.#presigned = opts.presigned ?? false;
 
 		this.#config = resolvableFn(opts.config ?? {});
 		this.#bucket = resolvableFn(opts.bucket);
@@ -126,11 +146,29 @@ export class S3Store<TPayload = unknown>
 	async load(args: LoadArgs<S3Reference>): Promise<TPayload> {
 		this.#logger("Loading payload");
 
-		const client = this.getClient();
-
 		const { reference } = args;
-		const { bucket, key } = parseS3Reference(reference);
 		this.#logger(`Loading payload from reference ${reference}`);
+
+		// Handle presigned URLs with HTTP fetch
+		if (isS3PresignedUrl(reference)) {
+			const response = await fetch(reference);
+			if (!response.ok) {
+				throw new Error(
+					`Failed to fetch presigned URL: ${response.status} ${response.statusText}`,
+				);
+			}
+
+			const contentType =
+				response.headers.get("content-type") || "application/octet-stream";
+			const payload = await this.deserializeHttpResponse(response, contentType);
+
+			this.#logger(`Loaded payload from presigned URL`);
+			return payload as TPayload;
+		}
+
+		// Handle regular S3 references with SDK
+		const client = this.getClient();
+		const { bucket, key } = parseS3Reference(reference);
 
 		const result = await client.send(
 			new GetObjectCommand({ Bucket: bucket, Key: key }),
@@ -187,6 +225,19 @@ export class S3Store<TPayload = unknown>
 			typeof client.config.region === "function"
 				? await client.config.region()
 				: client.config.region;
+
+		// Generate presigned URL if enabled
+		if (this.#presigned) {
+			const expiresIn =
+				typeof this.#presigned === "object" ? this.#presigned.expiresIn : 3600;
+			const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+			const presignedUrl = await getSignedUrl(client as any, command as any, {
+				expiresIn,
+			});
+			this.#logger(`Generated presigned URL with ${expiresIn}s expiration`);
+
+			return presignedUrl;
+		}
 
 		const reference = formatS3Reference({ bucket, key, region }, this.#format);
 		this.#logger(`Stored payload to reference ${reference}`);
@@ -260,5 +311,25 @@ export class S3Store<TPayload = unknown>
 		// TODO handle other content types like 'application/octet-stream'
 
 		throw new Error(`Unsupported payload type: ${ContentType}`);
+	}
+
+	private async deserializeHttpResponse(
+		response: Response,
+		contentType: string,
+	): Promise<unknown> {
+		// TODO check for charset encoding
+		if (contentType.startsWith("text/plain")) {
+			const payload = await response.text();
+			return payload;
+		}
+
+		if (contentType.startsWith("application/json")) {
+			const payload = await response.text();
+			return JSON.parse(payload);
+		}
+
+		// TODO handle other content types like 'application/octet-stream'
+
+		throw new Error(`Unsupported payload type: ${contentType}`);
 	}
 }

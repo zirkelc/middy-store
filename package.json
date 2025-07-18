@@ -9,10 +9,9 @@
 		"test:ci": "vitest --coverage.enabled --coverage.provider=v8 --coverage.reporter=json-summary --coverage.reporter=json --coverage.reporter=text-summary",
 		"lint": "biome check . --write --no-errors-on-unmatched",
 		"prepare": "husky",
-		"release": "pnpm build && pnpm changeset:publish",
+		"release": "pnpm build && pnpm changeset publish",
 		"changeset:init": "changeset",
-		"changeset:version": "changeset version",
-		"changeset:publish": "changeset publish"
+		"changeset:version": "changeset version"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.3",
