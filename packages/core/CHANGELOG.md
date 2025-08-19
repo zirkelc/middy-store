@@ -1,5 +1,11 @@
 # middy-store
 
+## 0.2.0
+
+### Minor Changes
+
+- [`30dc1b1`](https://github.com/zirkelc/middy-store/commit/30dc1b1c039d32cc0d72476ed6262b07f23dbd41) Thanks [@zirkelc](https://github.com/zirkelc)! - fix: package json exports
+
 ## 0.1.1
 
 ### Patch Changes
