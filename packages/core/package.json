@@ -17,17 +17,15 @@
 		"module": "./dist/index.js",
 		"exports": {
 			".": {
-				"import": {
-					"types": "./dist/index.d.ts",
-					"default": "./dist/index.js"
-				}
+				"require": "./dist/index.cjs",
+				"import": "./dist/index.js"
 			}
 		}
 	},
 	"scripts": {
 		"prepack": "cp ../../README.md ./README.md",
 		"test": "vitest",
-		"build": "tsup ./src/index.ts --format esm --dts --clean"
+		"build": "tsup && pnpm pack | tail -n1 | xargs attw --profile node16"
 	},
 	"keywords": [],
 	"author": "Chris Cook",

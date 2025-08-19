@@ -8,12 +8,7 @@
 	"type": "module",
 	"module": "./src/index.ts",
 	"exports": {
-		".": {
-			"import": {
-				"types": "./src/index.ts",
-				"default": "./src/index.ts"
-			}
-		}
+		".": "./src/index.ts"
 	},
 	"files": ["dist"],
 	"publishConfig": {
@@ -21,15 +16,13 @@
 		"module": "./dist/index.js",
 		"exports": {
 			".": {
-				"import": {
-					"types": "./dist/index.d.ts",
-					"default": "./dist/index.js"
-				}
+				"require": "./dist/index.cjs",
+				"import": "./dist/index.js"
 			}
 		}
 	},
 	"scripts": {
-		"build": "tsup src/index.ts --format esm --dts --clean",
+		"build": "tsup && pnpm pack | tail -n1 | xargs attw --profile node16",
 		"test": "vitest"
 	},
 	"keywords": [],
