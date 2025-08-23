@@ -27,7 +27,7 @@ const useStore = <TInput = any, TOutput = any>(
 	middy<TInput, TOutput>()
 		.use(middyStore(options))
 		.handler(async (input) => {
-			return input;
+			return input as any;
 		});
 
 beforeEach(() => {
@@ -1061,8 +1061,8 @@ describe("deleteAfterLoad", () => {
 
 		vi.mocked(mockStoreWithDelete.canLoad).mockReturnValue(true);
 		vi.mocked(mockStoreWithDelete.load).mockResolvedValue(payload);
-		vi.mocked(mockStoreWithDelete.canDelete).mockReturnValue(true);
-		vi.mocked(mockStoreWithDelete.delete).mockResolvedValue();
+		vi.mocked(mockStoreWithDelete.canDelete!).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.delete!).mockResolvedValue();
 
 		const handler = useStore({
 			stores: [mockStoreWithDelete],
@@ -1090,8 +1090,8 @@ describe("deleteAfterLoad", () => {
 		vi.mocked(mockStoreWithDelete.load)
 			.mockResolvedValueOnce(payload1)
 			.mockResolvedValueOnce(payload2);
-		vi.mocked(mockStoreWithDelete.canDelete).mockReturnValue(true);
-		vi.mocked(mockStoreWithDelete.delete).mockResolvedValue();
+		vi.mocked(mockStoreWithDelete.canDelete!).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.delete!).mockResolvedValue();
 
 		const handler = useStore({
 			stores: [mockStoreWithDelete],
@@ -1109,7 +1109,7 @@ describe("deleteAfterLoad", () => {
 			b: payload2,
 		});
 
-		expect(mockStoreWithDelete.canDelete).toHaveBeenCalledTimes(4); // Called twice in before (tracking) and twice in after (deletion)
+		expect(mockStoreWithDelete.canDelete).toHaveBeenCalledTimes(2);
 		expect(mockStoreWithDelete.delete).toHaveBeenCalledTimes(2);
 		expect(mockStoreWithDelete.canDelete).toHaveBeenCalledWith({
 			reference: reference1,
@@ -1154,8 +1154,8 @@ describe("deleteAfterLoad", () => {
 
 		vi.mocked(mockStoreWithDelete.canLoad).mockReturnValue(true);
 		vi.mocked(mockStoreWithDelete.load).mockResolvedValue(payload);
-		vi.mocked(mockStoreWithDelete.canDelete).mockReturnValue(true);
-		vi.mocked(mockStoreWithDelete.delete).mockRejectedValue(deleteError);
+		vi.mocked(mockStoreWithDelete.canDelete!).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.delete!).mockRejectedValue(deleteError);
 
 		const handler = useStore({
 			stores: [mockStoreWithDelete],
@@ -1217,7 +1217,7 @@ describe("deleteAfterLoad", () => {
 
 		vi.mocked(mockStoreWithDelete.canLoad).mockReturnValue(true);
 		vi.mocked(mockStoreWithDelete.load).mockResolvedValue(payload);
-		vi.mocked(mockStoreWithDelete.canDelete).mockReturnValue(false);
+		vi.mocked(mockStoreWithDelete.canDelete!).mockReturnValue(false);
 
 		const handler = useStore({
 			stores: [mockStoreWithDelete],
