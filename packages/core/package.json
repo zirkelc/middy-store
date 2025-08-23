@@ -1,6 +1,6 @@
 {
 	"name": "middy-store",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Middleware for Lambda that automatically stores and loads payloads from and to a Store like Amazon S3 or others",
 	"type": "module",
 	"engines": {

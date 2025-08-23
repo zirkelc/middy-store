@@ -993,3 +993,19 @@ describe("store", () => {
 		});
 	});
 });
+
+describe("Sizes constants", () => {
+	test("LAMBDA_SYNC should be 6MB", () => {
+		expect(Sizes.LAMBDA_SYNC).toEqual(6 * 1024 * 1024);
+		expect(Sizes.LAMBDA_SYNC).toEqual(Sizes.mb(6));
+	});
+
+	test("LAMBDA_ASYNC should be 256KB", () => {
+		expect(Sizes.LAMBDA_ASYNC).toEqual(256 * 1024);
+		expect(Sizes.LAMBDA_ASYNC).toEqual(Sizes.kb(256));
+	});
+
+	test("STEP_FUNCTIONS should be 262144 bytes", () => {
+		expect(Sizes.STEP_FUNCTIONS).toEqual(262144);
+	});
+});

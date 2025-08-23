@@ -1,5 +1,14 @@
 # middy-store-s3
 
+## 0.2.1
+
+### Patch Changes
+
+- fix: calculate lambda sync and async sizes correctly
+
+- Updated dependencies []:
+  - middy-store@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

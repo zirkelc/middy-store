@@ -30,6 +30,10 @@ export type Selector<TObject> = TObject extends Record<string, any>
 	? Paths<TObject, { anyArrayIndexAccessor: "*" }>
 	: string;
 
+const kb = (kb: number) => kb * 1024;
+const mb = (mb: number) => mb * 1024 * 1024;
+const gb = (gb: number) => gb * 1024 * 1024 * 1024;
+
 /**
  * Size limits for input and output of AWS services.
  */
@@ -37,15 +41,15 @@ export const Sizes = {
 	/**
 	 * Convert kilobytes to bytes.
 	 */
-	kb: (kb: number) => kb * 1024,
+	kb,
 	/**
 	 * Convert megabytes to bytes.
 	 */
-	mb: (mb: number) => mb * 1024 * 1024,
+	mb,
 	/**
 	 * Convert gigabytes to bytes.
 	 */
-	gb: (gb: number) => gb * 1024 * 1024 * 1024,
+	gb,
 
 	/**
 	 * Always write the output to the store.
@@ -64,12 +68,12 @@ export const Sizes = {
 	 * The maximum size for synchronous Lambda invocations is 6MB.
 	 * @see https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html
 	 */
-	LAMBDA_SYNC: 6 * 1024 * 1024 * 1024, // 6MB,
+	LAMBDA_SYNC: mb(6), // 6MB,
 	/**
 	 * The maximum size for asynchronous Lambda payloads is 256KB.
 	 * @see https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html
 	 */
-	LAMBDA_ASYNC: 256 * 1024 * 1024, // 256KB,
+	LAMBDA_ASYNC: kb(256), // 256KB,
 };
 
 // TODO add metadata object which will be passed to the store and load methods
