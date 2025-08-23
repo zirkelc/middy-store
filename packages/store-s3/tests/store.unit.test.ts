@@ -1,5 +1,9 @@
 import { ReadableStream } from "node:stream/web";
-import { type GetObjectCommandOutput, S3Client } from "@aws-sdk/client-s3";
+import {
+	DeleteObjectCommand,
+	type GetObjectCommandOutput,
+	S3Client,
+} from "@aws-sdk/client-s3";
 import {
 	type MockInstance,
 	beforeAll,
@@ -454,5 +458,126 @@ describe("S3Store.store", () => {
 			);
 			expect(result).toMatch(/X-Amz-Expires=1800/);
 		});
+	});
+});
+
+describe("S3Store.canDelete", () => {
+	test("should check if store can delete ARN reference", () => {
+		const s3Store = new S3Store({ config, bucket, key });
+
+		expect(s3Store.canDelete({ reference: arnReference })).toBe(true);
+	});
+
+	test("should check if store can delete URL reference", () => {
+		const s3Store = new S3Store({ config, bucket, key });
+
+		expect(s3Store.canDelete({ reference: urlReference })).toBe(true);
+	});
+
+	test("should check if store can delete object reference", () => {
+		const s3Store = new S3Store({ config, bucket, key });
+
+		expect(s3Store.canDelete({ reference: objectReference })).toBe(true);
+	});
+
+	test("should not delete presigned URL reference", () => {
+		const s3Store = new S3Store({ config, bucket, key });
+
+		expect(s3Store.canDelete({ reference: presignedUrlReference })).toBe(false);
+	});
+
+	test("should return false for invalid references", () => {
+		const s3Store = new S3Store({ config, bucket, key });
+
+		expect(s3Store.canDelete(null as any)).toBe(false);
+		expect(s3Store.canDelete(undefined as any)).toBe(false);
+		expect(s3Store.canDelete("" as any)).toBe(false);
+		expect(s3Store.canDelete({} as any)).toBe(false);
+		expect(s3Store.canDelete({ reference: "invalid" })).toBe(false);
+	});
+});
+
+describe("S3Store.delete", () => {
+	let sendSpy: MockInstance;
+
+	const mockClient = () => {
+		sendSpy = vi.spyOn(S3Client.prototype, "send");
+		sendSpy.mockResolvedValue({});
+	};
+
+	beforeEach(() => {
+		vi.resetAllMocks();
+	});
+
+	test("should delete object using ARN reference", async () => {
+		mockClient();
+
+		const s3Store = new S3Store({ config, bucket, key });
+
+		await s3Store.delete({ reference: arnReference });
+
+		expect(sendSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: {
+					Bucket: bucket,
+					Key: key,
+				},
+			}),
+		);
+	});
+
+	test("should delete object using URL reference", async () => {
+		mockClient();
+
+		const s3Store = new S3Store({ config, bucket, key });
+
+		await s3Store.delete({ reference: urlReference });
+
+		expect(sendSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: {
+					Bucket: bucket,
+					Key: key,
+				},
+			}),
+		);
+	});
+
+	test("should delete object using object reference", async () => {
+		mockClient();
+
+		const s3Store = new S3Store({ config, bucket, key });
+
+		await s3Store.delete({ reference: objectReference });
+
+		expect(sendSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: {
+					Bucket: bucket,
+					Key: key,
+				},
+			}),
+		);
+	});
+
+	test("should handle S3 delete errors", async () => {
+		const deleteError = new Error("Delete failed");
+		sendSpy = vi.spyOn(S3Client.prototype, "send");
+		sendSpy.mockRejectedValue(deleteError);
+
+		const s3Store = new S3Store({ config, bucket, key });
+
+		await expect(
+			s3Store.delete({ reference: objectReference }),
+		).rejects.toThrow("Delete failed");
+
+		expect(sendSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: {
+					Bucket: bucket,
+					Key: key,
+				},
+			}),
+		);
 	});
 });
