@@ -49,3 +49,36 @@ The `S3Store` accepts the following options:
 | `format`   | `S3ReferenceFormat`                       | `url-s3-global-path`      | The format of the S3 reference: `arn`, `object` or one of the URL formats from [amazon-s3-url](https://www.npmjs.com/package/amazon-s3-url) package. Defaults to S3 URI format `s3://<bucket>/<...keys>`. |
 | `maxSize`  | `number`                                  | `undefined`               | The maximum payload size in bytes that can be stored in S3. If the payload exceeds this size, it will not be stored in S3. |
 | `logger`   | `Logger`                                  | `undefined`               | The logger function to use for logging. |
+
+## IAM Permissions
+
+The S3 Store requires specific IAM permissions to function properly. The required permissions depend on the features you use:
+
+### Basic Operations
+For storing and loading payloads, the following permissions are required:
+- `s3:PutObject` - Required to store payloads in the S3 bucket
+- `s3:GetObject` - Required to load payloads from the S3 bucket
+
+If you enable the `deleteAfterLoad` option in `loadingOptions`, you also need:
+- `s3:DeleteObject` - Required to delete payloads after they have been loaded
+
+### Example IAM Policy
+
+> **Note**: Replace `your-bucket-name` with the actual name of your S3 bucket. If you use multiple buckets, include all bucket ARNs in the `Resource` array.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::your-bucket-name/*"
+    }
+  ]
+}
+```

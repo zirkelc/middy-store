@@ -296,6 +296,7 @@ The `middyStore()` function accepts the following options:
 | `loadingOptions`              | `LoadingOptions`                | `undefined`               | The options for loading payloads from the store. |
 | `loadingOptions.skip`         | `boolean`                       | `undefined`               | Skip loading the payload from the store, even if the input contains a reference. |
 | `loadingOptions.passThrough`  | `boolean`                       | `undefined`               | Pass the input through if no store was found to load the reference. |
+| `loadingOptions.deleteAfterLoad` | `boolean`                    | `undefined`               | Delete the payload from the store after it has been loaded and the Lambda function has executed successfully. This helps with automatic cleanup of temporary payloads. Note: The payload is only deleted if the Lambda function completes without throwing an error. |
 | `storingOptions`              | `StoringOptions`                | `undefined`               | The options for storing payloads into the store. |
 | `storingOptions.skip`         | `boolean`                       | `undefined`               | Skip storing the payload in the store, even if the output exceeds the maximum size. |
 | `storingOptions.passThrough`  | `boolean`                       | `undefined`               | Pass the output through if no store was found to store the payload. |
