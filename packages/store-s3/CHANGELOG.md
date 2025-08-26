@@ -1,5 +1,16 @@
 # middy-store-s3
 
+## 0.3.0
+
+### Minor Changes
+
+- [#17](https://github.com/zirkelc/middy-store/pull/17) [`6742e69`](https://github.com/zirkelc/middy-store/commit/6742e697f60d71f2d79ebeee7abdc975be300ce7) Thanks [@zirkelc](https://github.com/zirkelc)! - feat: add option to delete reference after successul load
+
+### Patch Changes
+
+- Updated dependencies [[`6742e69`](https://github.com/zirkelc/middy-store/commit/6742e697f60d71f2d79ebeee7abdc975be300ce7)]:
+  - middy-store@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes

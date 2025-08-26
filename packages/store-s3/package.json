@@ -1,6 +1,6 @@
 {
 	"name": "middy-store-s3",
-	"version": "0.2.1",
+	"version": "0.3.0",
 	"description": "Amazon S3 Store for middy-store",
 	"engines": {
 		"node": ">=18"

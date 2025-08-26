@@ -1,5 +1,12 @@
 # middy-store-dynamodb
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`6742e69`](https://github.com/zirkelc/middy-store/commit/6742e697f60d71f2d79ebeee7abdc975be300ce7)]:
+  - middy-store@0.3.0
+
 ## 0.1.1
 
 ### Patch Changes
