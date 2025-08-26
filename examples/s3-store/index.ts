@@ -82,6 +82,24 @@ const handler2 = middy()
 		);
 	});
 
+const handler3 = middy()
+	.use(
+		middyStore<Payload, {}>({
+			stores: [s3Store],
+			loadingOptions: {
+				/* Delete the payload from S3 after successful processing */
+				deleteAfterLoad: true,
+			},
+		}),
+	)
+	.handler(async (input) => {
+		/* Process the payload and return some result */
+		console.log(
+			`Processing payload ID: ${input.id}, Size: ${Buffer.from(input.random, "hex").byteLength / 1024}kb`,
+		);
+		return { processed: true, originalId: input.id };
+	});
+
 /**
  * First handler generates a random payload and returns it.
  * middy-store will store the payload in Amazon S3 and replace the payload with a reference.
@@ -99,3 +117,25 @@ console.log(output);
  * middy-store will load the payload from Amazon S3 and replace the reference with the payload.
  */
 await handler2(output, context);
+
+/**
+ * Third handler receives the same output and demonstrates deleteAfterLoad feature.
+ * middy-store will load the payload from Amazon S3, process it, and then delete it automatically.
+ */
+console.log("\n--- Demonstrating deleteAfterLoad ---");
+const processedResult = await handler3(output, context);
+console.log("Processing result:", processedResult);
+
+/**
+ * Try to load the same reference again - it should fail since the object was deleted
+ */
+console.log("\n--- Verifying deletion ---");
+try {
+	await handler2(output, context);
+	console.log("ERROR: Object should have been deleted!");
+} catch (error) {
+	console.log(
+		"✅ Confirmed: Object was automatically deleted after processing",
+	);
+	console.log(`Error: ${(error as Error).message}`);
+}

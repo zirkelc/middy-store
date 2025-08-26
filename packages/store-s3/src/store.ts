@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+	DeleteObjectCommand,
 	GetObjectCommand,
 	type GetObjectCommandOutput,
 	PutObjectCommand,
@@ -197,6 +198,29 @@ export class S3Store<TPayload = unknown>
 		return true;
 	}
 
+	canDelete(args: LoadArgs<unknown>): boolean {
+		this.#logger("Checking if store can delete reference");
+
+		if (!isObject(args)) return false;
+
+		const { reference } = args;
+
+		try {
+			// Skip presigned URLs
+			if (isS3PresignedUrl(reference)) {
+				this.#logger("Cannot delete presigned URL reference");
+				return false;
+			}
+
+			const { bucket } = parseS3Reference(reference);
+			this.#logger(`Store can delete from bucket ${bucket}`);
+			return true;
+		} catch (error) {
+			this.#logger(`Reference ${reference} is not a deletable S3 reference`);
+			return false;
+		}
+	}
+
 	public async store(args: StoreArgs<TPayload>): Promise<S3Reference> {
 		this.#logger("Storing payload");
 
@@ -243,6 +267,24 @@ export class S3Store<TPayload = unknown>
 		this.#logger(`Stored payload to reference ${reference}`);
 
 		return reference;
+	}
+
+	public async delete(args: LoadArgs<S3Reference>): Promise<void> {
+		this.#logger("Deleting payload");
+
+		const { reference } = args;
+		this.#logger(`Deleting payload from reference ${reference}`);
+
+		const client = this.getClient();
+		const { bucket, key } = parseS3Reference(reference);
+
+		try {
+			await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+			this.#logger(`Deleted payload from bucket ${bucket} and key ${key}`);
+		} catch (error) {
+			this.#logger("Error during delete object", { error });
+			throw error;
+		}
 	}
 
 	private getBucket(): string {

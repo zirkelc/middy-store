@@ -27,7 +27,7 @@ const useStore = <TInput = any, TOutput = any>(
 	middy<TInput, TOutput>()
 		.use(middyStore(options))
 		.handler(async (input) => {
-			return input;
+			return input as any;
 		});
 
 beforeEach(() => {
@@ -1007,5 +1007,231 @@ describe("Sizes constants", () => {
 
 	test("STEP_FUNCTIONS should be 262144 bytes", () => {
 		expect(Sizes.STEP_FUNCTIONS).toEqual(262144);
+	});
+});
+
+describe("deleteAfterLoad", () => {
+	const mockStoreWithDelete: StoreInterface = {
+		name: "mock-with-delete",
+		canLoad: vi.fn(),
+		load: vi.fn(),
+		canStore: vi.fn(),
+		store: vi.fn(),
+		canDelete: vi.fn(),
+		delete: vi.fn(),
+	};
+
+	const mockStoreWithoutDelete: StoreInterface = {
+		name: "mock-without-delete",
+		canLoad: vi.fn(),
+		load: vi.fn(),
+		canStore: vi.fn(),
+		store: vi.fn(),
+	};
+
+	beforeEach(() => {
+		vi.resetAllMocks();
+	});
+
+	test("should not delete if deleteAfterLoad is disabled", async () => {
+		const reference = { store: "mock" };
+		const payload = { foo: "bar" };
+
+		vi.mocked(mockStoreWithDelete.canLoad).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.load).mockResolvedValue(payload);
+
+		const handler = useStore({
+			stores: [mockStoreWithDelete],
+			loadingOptions: {
+				deleteAfterLoad: false,
+			},
+		});
+
+		const input = { [MIDDY_STORE]: reference };
+		await expect(handler(input, context)).resolves.toEqual(payload);
+
+		expect(mockStoreWithDelete.canLoad).toHaveBeenCalled();
+		expect(mockStoreWithDelete.load).toHaveBeenCalled();
+		expect(mockStoreWithDelete.delete).not.toHaveBeenCalled();
+	});
+
+	test("should delete reference after successful function execution", async () => {
+		const reference = { store: "mock" };
+		const payload = { foo: "bar" };
+
+		vi.mocked(mockStoreWithDelete.canLoad).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.load).mockResolvedValue(payload);
+		vi.mocked(mockStoreWithDelete.canDelete!).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.delete!).mockResolvedValue();
+
+		const handler = useStore({
+			stores: [mockStoreWithDelete],
+			loadingOptions: {
+				deleteAfterLoad: true,
+			},
+		});
+
+		const input = { [MIDDY_STORE]: reference };
+		await expect(handler(input, context)).resolves.toEqual(payload);
+
+		expect(mockStoreWithDelete.canLoad).toHaveBeenCalled();
+		expect(mockStoreWithDelete.load).toHaveBeenCalledWith({ reference });
+		expect(mockStoreWithDelete.canDelete).toHaveBeenCalledWith({ reference });
+		expect(mockStoreWithDelete.delete).toHaveBeenCalledWith({ reference });
+	});
+
+	test("should delete multiple references", async () => {
+		const reference1 = { store: "mock", key: "key1" };
+		const reference2 = { store: "mock", key: "key2" };
+		const payload1 = { foo: "bar" };
+		const payload2 = { baz: "qux" };
+
+		vi.mocked(mockStoreWithDelete.canLoad).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.load)
+			.mockResolvedValueOnce(payload1)
+			.mockResolvedValueOnce(payload2);
+		vi.mocked(mockStoreWithDelete.canDelete!).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.delete!).mockResolvedValue();
+
+		const handler = useStore({
+			stores: [mockStoreWithDelete],
+			loadingOptions: {
+				deleteAfterLoad: true,
+			},
+		});
+
+		const input = {
+			a: { [MIDDY_STORE]: reference1 },
+			b: { [MIDDY_STORE]: reference2 },
+		};
+		await expect(handler(input, context)).resolves.toEqual({
+			a: payload1,
+			b: payload2,
+		});
+
+		expect(mockStoreWithDelete.canDelete).toHaveBeenCalledTimes(2);
+		expect(mockStoreWithDelete.delete).toHaveBeenCalledTimes(2);
+		expect(mockStoreWithDelete.canDelete).toHaveBeenCalledWith({
+			reference: reference1,
+		});
+		expect(mockStoreWithDelete.canDelete).toHaveBeenCalledWith({
+			reference: reference2,
+		});
+		expect(mockStoreWithDelete.delete).toHaveBeenCalledWith({
+			reference: reference1,
+		});
+		expect(mockStoreWithDelete.delete).toHaveBeenCalledWith({
+			reference: reference2,
+		});
+	});
+
+	test("should not delete if store does not implement delete method", async () => {
+		const reference = { store: "mock" };
+		const payload = { foo: "bar" };
+
+		vi.mocked(mockStoreWithoutDelete.canLoad).mockReturnValue(true);
+		vi.mocked(mockStoreWithoutDelete.load).mockResolvedValue(payload);
+
+		const handler = useStore({
+			stores: [mockStoreWithoutDelete],
+			loadingOptions: {
+				deleteAfterLoad: true,
+			},
+		});
+
+		const input = { [MIDDY_STORE]: reference };
+		await expect(handler(input, context)).resolves.toEqual(payload);
+
+		expect(mockStoreWithoutDelete.canLoad).toHaveBeenCalled();
+		expect(mockStoreWithoutDelete.load).toHaveBeenCalled();
+		// Should not crash even though delete method doesn't exist
+	});
+
+	test("should handle delete failure gracefully", async () => {
+		const reference = { store: "mock" };
+		const payload = { foo: "bar" };
+		const deleteError = new Error("Delete failed");
+
+		vi.mocked(mockStoreWithDelete.canLoad).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.load).mockResolvedValue(payload);
+		vi.mocked(mockStoreWithDelete.canDelete!).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.delete!).mockRejectedValue(deleteError);
+
+		const handler = useStore({
+			stores: [mockStoreWithDelete],
+			loadingOptions: {
+				deleteAfterLoad: true,
+			},
+		});
+
+		const input = { [MIDDY_STORE]: reference };
+		// Function should complete successfully even if delete fails
+		await expect(handler(input, context)).resolves.toEqual(payload);
+
+		expect(mockStoreWithDelete.delete).toHaveBeenCalled();
+	});
+
+	test("should not delete if loading is skipped", async () => {
+		const reference = { store: "mock" };
+
+		const handler = useStore({
+			stores: [mockStoreWithDelete],
+			loadingOptions: {
+				skip: true,
+				deleteAfterLoad: true,
+			},
+		});
+
+		const input = { [MIDDY_STORE]: reference };
+		await expect(handler(input, context)).resolves.toEqual(input);
+
+		expect(mockStoreWithDelete.canLoad).not.toHaveBeenCalled();
+		expect(mockStoreWithDelete.load).not.toHaveBeenCalled();
+		expect(mockStoreWithDelete.delete).not.toHaveBeenCalled();
+	});
+
+	test("should work with passThrough when no store found", async () => {
+		const reference = { store: "unknown" };
+
+		vi.mocked(mockStoreWithDelete.canLoad).mockReturnValue(false);
+
+		const handler = useStore({
+			stores: [mockStoreWithDelete],
+			loadingOptions: {
+				passThrough: true,
+				deleteAfterLoad: true,
+			},
+		});
+
+		const input = { [MIDDY_STORE]: reference };
+		await expect(handler(input, context)).resolves.toEqual(reference);
+
+		expect(mockStoreWithDelete.canLoad).toHaveBeenCalled();
+		expect(mockStoreWithDelete.load).not.toHaveBeenCalled();
+		expect(mockStoreWithDelete.delete).not.toHaveBeenCalled();
+	});
+
+	test("should not delete if canDelete returns false", async () => {
+		const reference = { store: "mock" };
+		const payload = { foo: "bar" };
+
+		vi.mocked(mockStoreWithDelete.canLoad).mockReturnValue(true);
+		vi.mocked(mockStoreWithDelete.load).mockResolvedValue(payload);
+		vi.mocked(mockStoreWithDelete.canDelete!).mockReturnValue(false);
+
+		const handler = useStore({
+			stores: [mockStoreWithDelete],
+			loadingOptions: {
+				deleteAfterLoad: true,
+			},
+		});
+
+		const input = { [MIDDY_STORE]: reference };
+		await expect(handler(input, context)).resolves.toEqual(payload);
+
+		expect(mockStoreWithDelete.canLoad).toHaveBeenCalled();
+		expect(mockStoreWithDelete.load).toHaveBeenCalled();
+		expect(mockStoreWithDelete.canDelete).toHaveBeenCalledWith({ reference });
+		expect(mockStoreWithDelete.delete).not.toHaveBeenCalled();
 	});
 });

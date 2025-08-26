@@ -1,4 +1,5 @@
 import type { MiddlewareObj } from "@middy/core";
+import type { Context } from "aws-lambda";
 import type { Paths } from "ts-essentials";
 import {
 	calculateByteSize,
@@ -89,12 +90,19 @@ export type LoadArgs<TReference> = {
 	reference: TReference;
 };
 
+type LoadedReference = {
+	reference: unknown;
+	store: StoreInterface;
+};
+
 export interface StoreInterface<TPayload = unknown, TReference = unknown> {
 	name: string;
 	canLoad: (args: LoadArgs<unknown>) => boolean;
 	load: (args: LoadArgs<TReference>) => Promise<TPayload>;
 	canStore: (args: StoreArgs<TPayload>) => boolean;
 	store: (args: StoreArgs<TPayload>) => Promise<TReference>;
+	canDelete?: (args: LoadArgs<unknown>) => boolean;
+	delete?: (args: LoadArgs<TReference>) => Promise<void>;
 }
 
 // TODO add option to clone instead of mutate input/output
@@ -104,6 +112,10 @@ export interface MiddyStoreOptions<TInput = unknown, TOutput = unknown> {
 	storingOptions?: StoringOptions<TInput, TOutput>;
 	logger?: Logger;
 }
+
+type MiddyStoreInternal = {
+	loadedReferences?: Array<LoadedReference>;
+};
 
 export interface LoadingOptions<TInput> {
 	/**
@@ -115,6 +127,13 @@ export interface LoadingOptions<TInput> {
 	 * Pass the input through if no store was found to load the reference.
 	 */
 	passThrough?: boolean;
+
+	/**
+	 * Delete the payload from the store after it has been loaded and the Lambda function has executed successfully.
+	 * This helps with automatic cleanup of temporary payloads.
+	 * Note: The payload is only deleted if the Lambda function completes without throwing an error.
+	 */
+	deleteAfterLoad?: boolean;
 
 	// selector?: Selector<TInput>; // TODO
 
@@ -198,7 +217,6 @@ const DUMMY_LOGGER = (...args: any[]) => {};
  * That means the payload from the store will always be the input for the next state.
  * The selector is only to create temporary payloads to control the flow of the state machine between states.
  */
-
 export const middyStore = <TInput = unknown, TOutput = unknown>(
 	opts: MiddyStoreOptions<TInput, TOutput>,
 ): MiddlewareObj<TInput, TOutput> => {
@@ -207,7 +225,13 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 
 	// let request: Request<TInput, TOutput> | undefined;
 
-	const middleware: MiddlewareObj<TInput, TOutput> = {
+	const middleware: MiddlewareObj<
+		TInput,
+		TOutput,
+		Error,
+		Context,
+		MiddyStoreInternal
+	> = {
 		before: async (request) => {
 			// setting read to false will skip the store
 			if (loadingOptions?.skip) {
@@ -221,6 +245,9 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				logger(`Input must be an object, skipping store`);
 				return;
 			}
+
+			// Initialize array to track loaded references for potential deletion
+			request.internal.loadedReferences = [];
 
 			let index = 0;
 			for (const path of generateReferencePaths({ input, path: "" })) {
@@ -267,6 +294,12 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 					payload,
 				});
 
+				// Track this reference and store for potential deletion
+				if (loadingOptions?.deleteAfterLoad) {
+					request.internal.loadedReferences.push({ reference, store });
+					logger(`Tracked reference for deletion after successful execution`);
+				}
+
 				// replace the reference with the payload
 				request.event = replaceByPath({
 					source: input,
@@ -281,6 +314,40 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 		},
 
 		after: async (request) => {
+			// Delete loaded references if deleteAfterLoad is enabled and function executed successfully
+			if (loadingOptions?.deleteAfterLoad) {
+				const loadedReferences = request.internal.loadedReferences || [];
+
+				for (const { reference, store } of loadedReferences) {
+					if (!store.canDelete || !store.canDelete({ reference })) {
+						logger(
+							`Store "${store.name}" cannot delete reference ${reference}`,
+						);
+						continue;
+					}
+
+					if (!store.delete) {
+						logger(`Store "${store.name}" does not support deletion`);
+						continue;
+					}
+
+					try {
+						await store.delete({ reference });
+						logger(
+							`Deleted reference from store "${store.name}" after successful execution`,
+						);
+					} catch (error) {
+						// Log warning but don't fail the main flow
+						logger(
+							`Failed to delete reference ${reference} from store "${store.name}"`,
+							{
+								error,
+							},
+						);
+					}
+				}
+			}
+
 			// setting write to false will skip the store
 			if (storingOptions?.skip) {
 				logger(`Storing is disabled, skipping Store`);

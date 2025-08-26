@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
 	CreateBucketCommand,
+	GetObjectCommand,
 	HeadBucketCommand,
 	S3Client,
 	type S3ClientConfig,
@@ -12,7 +13,7 @@ import { LocalstackContainer } from "@testcontainers/localstack";
 import { MIDDY_STORE, middyStore } from "middy-store";
 import { context, randomStringInBytes } from "middy-store/internal";
 import { beforeAll, describe, expect, test, vi } from "vitest";
-import { S3Store } from "../dist/index.js";
+import { S3Store } from "../src/index.js";
 
 const localstack = await new LocalstackContainer(
 	"localstack/localstack:3",
@@ -445,5 +446,236 @@ describe("S3Store", () => {
 
 		// Verify the presigned URL can be loaded
 		await readHandler(output, context);
+	});
+
+	describe("deleteAfterLoad", () => {
+		test("should delete object after successful load", async () => {
+			const s3Store = new S3Store<typeof payload>({
+				config,
+				bucket,
+				key: mockKey,
+				format: "arn",
+			});
+
+			// Store a payload first
+			const storeHandler = middy()
+				.use(
+					middyStore({
+						stores: [s3Store],
+						storingOptions: {
+							minSize: 0,
+						},
+					}),
+				)
+				.handler(async (input: unknown) => {
+					return structuredClone(payload);
+				});
+
+			const storedOutput = await storeHandler(null, context);
+			expect(storedOutput).toBeDefined();
+			expect(storedOutput[MIDDY_STORE]).toBeDefined();
+
+			// Now load the payload with deleteAfterLoad enabled
+			const loadHandler = middy()
+				.use(
+					middyStore({
+						stores: [s3Store],
+						loadingOptions: {
+							deleteAfterLoad: true,
+						},
+					}),
+				)
+				.handler(async (input: unknown) => {
+					expect(input).toEqual(payload);
+					return { processed: true };
+				});
+
+			// Should load successfully
+			await expect(loadHandler(storedOutput, context)).resolves.toEqual({
+				processed: true,
+			});
+
+			// Verify the object is deleted by trying to load it again
+			const verifyHandler = middy()
+				.use(
+					middyStore({
+						stores: [s3Store],
+						loadingOptions: {
+							passThrough: true, // Don't fail, just passthrough if not found
+						},
+					}),
+				)
+				.handler(async (input: unknown) => {
+					return input;
+				});
+
+			// Verify the object is actually deleted by checking directly with S3 client
+			const reference = storedOutput[MIDDY_STORE] as string;
+			const arnMatch = reference.match(/arn:aws:s3:::([^\/]+)\/(.+)$/);
+			if (arnMatch) {
+				const [, bucketName, objectKey] = arnMatch;
+				const checkAfterDelete = new GetObjectCommand({
+					Bucket: bucketName,
+					Key: objectKey,
+				});
+				await expect(client.send(checkAfterDelete)).rejects.toThrow();
+			}
+		});
+
+		test("should handle multiple references deletion", async () => {
+			const s3Store = new S3Store<any>({
+				config,
+				bucket,
+				key: mockKey,
+				format: "arn",
+			});
+
+			const payload1 = { id: "test1", data: randomStringInBytes(1024) };
+			const payload2 = { id: "test2", data: randomStringInBytes(1024) };
+
+			// Store two payloads
+			const storeHandler = middy()
+				.use(
+					middyStore({
+						stores: [s3Store],
+						storingOptions: {
+							minSize: 0,
+						},
+					}),
+				)
+				.handler(async (input: any) => {
+					if (input?.type === "first") {
+						return payload1;
+					}
+					return payload2;
+				});
+
+			const stored1 = await storeHandler({ type: "first" }, context);
+			const stored2 = await storeHandler({ type: "second" }, context);
+
+			// Create input with multiple references
+			const multiInput = {
+				first: stored1,
+				second: stored2,
+			};
+
+			// Load and delete both references
+			const loadHandler = middy()
+				.use(
+					middyStore({
+						stores: [s3Store],
+						loadingOptions: {
+							deleteAfterLoad: true,
+						},
+					}),
+				)
+				.handler(async (input: any) => {
+					expect(input.first).toEqual(payload1);
+					expect(input.second).toEqual(payload2);
+					return { processed: "both" };
+				});
+
+			// Should load and delete both successfully
+			await expect(loadHandler(multiInput, context)).resolves.toEqual({
+				processed: "both",
+			});
+
+			// Verify both objects are deleted by attempting to load them again
+			const verifyHandler = middy()
+				.use(
+					middyStore({
+						stores: [s3Store],
+					}),
+				)
+				.handler(async (input: any) => {
+					return input;
+				});
+
+			// Verify both objects are deleted by checking directly with S3 client
+			const ref1 = stored1[MIDDY_STORE] as string;
+			const ref2 = stored2[MIDDY_STORE] as string;
+
+			const arnMatch1 = ref1.match(/arn:aws:s3:::([^\/]+)\/(.+)$/);
+			const arnMatch2 = ref2.match(/arn:aws:s3:::([^\/]+)\/(.+)$/);
+
+			if (arnMatch1) {
+				const [, bucketName, objectKey] = arnMatch1;
+				const checkAfterDelete = new GetObjectCommand({
+					Bucket: bucketName,
+					Key: objectKey,
+				});
+				await expect(client.send(checkAfterDelete)).rejects.toThrow();
+			}
+
+			if (arnMatch2) {
+				const [, bucketName, objectKey] = arnMatch2;
+				const checkAfterDelete = new GetObjectCommand({
+					Bucket: bucketName,
+					Key: objectKey,
+				});
+				await expect(client.send(checkAfterDelete)).rejects.toThrow();
+			}
+		});
+
+		test("should not delete if function fails", async () => {
+			const s3Store = new S3Store<typeof payload>({
+				config,
+				bucket,
+				key: mockKey,
+				format: "arn",
+			});
+
+			// Store a payload first
+			const storeHandler = middy()
+				.use(
+					middyStore({
+						stores: [s3Store],
+						storingOptions: {
+							minSize: 0,
+						},
+					}),
+				)
+				.handler(async (input: unknown) => {
+					return structuredClone(payload);
+				});
+
+			const storedOutput = await storeHandler(null, context);
+
+			// Create handler that fails after loading
+			const failingHandler = middy()
+				.use(
+					middyStore({
+						stores: [s3Store],
+						loadingOptions: {
+							deleteAfterLoad: true,
+						},
+					}),
+				)
+				.handler(async (input: unknown) => {
+					expect(input).toEqual(payload);
+					throw new Error("Function failed");
+				});
+
+			// Should fail and not delete the object
+			await expect(failingHandler(storedOutput, context)).rejects.toThrow(
+				"Function failed",
+			);
+
+			// Verify the object still exists by loading it again
+			const verifyHandler = middy()
+				.use(
+					middyStore({
+						stores: [s3Store],
+					}),
+				)
+				.handler(async (input: unknown) => {
+					expect(input).toEqual(payload);
+					return { verified: true };
+				});
+
+			await expect(verifyHandler(storedOutput, context)).resolves.toEqual({
+				verified: true,
+			});
+		});
 	});
 });
