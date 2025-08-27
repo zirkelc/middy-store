@@ -134,6 +134,8 @@ interface StoreInterface<TPayload = unknown, TReference = unknown> {
   load: (args: LoadArgs<TReference | unknown>) => Promise<TPayload>;
   canStore: (args: StoreArgs<TPayload>) => boolean;
   store: (args: StoreArgs<TPayload>) => Promise<TReference>;
+  canDelete?: (args: LoadArgs<unknown>) => boolean;
+  delete?: (args: LoadArgs<TReference>) => Promise<void>;
 }
 ```
 
@@ -144,6 +146,10 @@ interface StoreInterface<TPayload = unknown, TReference = unknown> {
 - `canLoad()` acts like a filter to check if the Store can load a certain reference. It receives the reference to a stored payload and checks if it's a valid identifier for the underlying storage system. For example, the Amazon S3 Store checks if the reference is a valid S3 URI, while a DynamoDB Store would check if it's a valid ARN.
 
 - `load()` receives the reference to a stored payload and loads the payload from storage. Depending on the Store, the payload will be deserialized into its original type according to the metadata that was stored alongside it. For example, a payload of type `application/json` will get parsed back into a JSON object, while a plain string of type `text/plain` will remain unaltered.
+
+- `canDelete()` (optional) acts as a guard to check if the Store can delete a stored payload. It receives a reference and checks if the Store supports deletion for that type of reference. For example, the Amazon S3 Store returns `false` for presigned URLs since they cannot be deleted using the standard delete operation.
+
+- `delete()` (optional) receives a reference to a stored payload and deletes it from the underlying storage system. This method is used when the `deleteAfterLoad` option is enabled to automatically clean up temporary payloads after they have been successfully loaded and processed.
 
 ### Single and Multiple Stores
 
@@ -290,19 +296,49 @@ await handler({});
 
 The `middyStore()` function accepts the following options:
 
-| Option                        | Type                            | Default                   | Description |
-| ----------------------------- | ------------------------------- | ------------------------- | ----------- |
-| `stores`                      | `Array<StoreInterface>`         | **Required**              | An array of store implementations to store and load payloads. |
-| `loadingOptions`              | `LoadingOptions`                | `undefined`               | The options for loading payloads from the store. |
-| `loadingOptions.skip`         | `boolean`                       | `undefined`               | Skip loading the payload from the store, even if the input contains a reference. |
-| `loadingOptions.passThrough`  | `boolean`                       | `undefined`               | Pass the input through if no store was found to load the reference. |
-| `loadingOptions.deleteAfterLoad` | `boolean`                    | `undefined`               | Delete the payload from the store after it has been loaded and the Lambda function has executed successfully. This helps with automatic cleanup of temporary payloads. Note: The payload is only deleted if the Lambda function completes without throwing an error. |
-| `storingOptions`              | `StoringOptions`                | `undefined`               | The options for storing payloads into the store. |
-| `storingOptions.skip`         | `boolean`                       | `undefined`               | Skip storing the payload in the store, even if the output exceeds the maximum size. |
-| `storingOptions.passThrough`  | `boolean`                       | `undefined`               | Pass the output through if no store was found to store the payload. |
-| `storingOptions.selector`     | `string`                        | `undefined`               | Selects the payload from the output to store in the store. |
-| `storingOptions.size`         | `number`                        | `Sizes.STEP_FUNCTIONS`    | The maximum output size in bytes before the output is stored in the store. If the output exceeds this size, it will be stored in a store. Defaults to 256KB, the maximum output size for [Step Functions](https://docs.aws.amazon.com/step-functions/latest/dg/limits-overview.html). |
-| `logger`                      | `Logger`                        | `undefined`               | The logger function to use for logging. |
+- **`stores`**: `Array<StoreInterface>` (**Required**)
+  
+  An array of store implementations to store and load payloads.
+
+- **`loadingOptions`**: `LoadingOptions` (default: `undefined`)
+  
+  The options for loading payloads from the store.
+
+  - **`loadingOptions.skip`**: `boolean` (default: `undefined`)
+    
+    Skip loading the payload from the store, even if the input contains a reference.
+
+  - **`loadingOptions.passThrough`**: `boolean` (default: `undefined`)
+    
+    Pass the input through if no store was found to load the reference.
+
+  - **`loadingOptions.deleteAfterLoad`**: `boolean` (default: `undefined`)
+    
+    Delete the payload from the store after it has been loaded and the Lambda function has executed successfully. This helps with automatic cleanup of temporary payloads. Note: The payload is only deleted if the Lambda function completes without throwing an error.
+
+- **`storingOptions`**: `StoringOptions` (default: `undefined`)
+  
+  The options for storing payloads into the store.
+
+  - **`storingOptions.skip`**: `boolean` (default: `undefined`)
+    
+    Skip storing the payload in the store, even if the output exceeds the maximum size.
+
+  - **`storingOptions.passThrough`**: `boolean` (default: `undefined`)
+    
+    Pass the output through if no store was found to store the payload.
+
+  - **`storingOptions.selector`**: `string` (default: `undefined`)
+    
+    Selects the payload from the output to store in the store.
+
+  - **`storingOptions.size`**: `number` (default: `Sizes.STEP_FUNCTIONS`)
+    
+    The maximum output size in bytes before the output is stored in the store. If the output exceeds this size, it will be stored in a store. Defaults to 256KB, the maximum output size for [Step Functions](https://docs.aws.amazon.com/step-functions/latest/dg/limits-overview.html).
+
+- **`logger`**: `Logger` (default: `undefined`)
+  
+  The logger function to use for logging.
 
 ## Stores
 
@@ -338,14 +374,29 @@ The `S3Store` only requires a `bucket` where the payloads are being stored. The 
 
 The `S3Store` accepts the following options:
 
-| Option     | Type                                      | Default                   | Description |
-| ---------- | ----------------------------------------- | ------------------------- | ----------- |
-| `bucket`   | `string \| Fn<string>`                    | **Required**              | The name of the S3 bucket to store the payloads. |
-| `key`      | `string \| Fn<string>`                    | `randomUUID`              | The key to store the payload in the bucket. Defaults to `randomUUID()` from `node:crypto`. |
-| `config`   | `S3ClientConfig  \| Fn<S3ClientConfig>`   | `{}`                      | The [S3 client configuration](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-client-s3/Interface/S3ClientConfig/).|
-| `format`   | `S3ReferenceFormat`                       | `url-s3-global-path`      | The format of the S3 reference: `arn`, `object` or one of the URL formats from [amazon-s3-url](https://www.npmjs.com/package/amazon-s3-url) package. Defaults to S3 URI format `s3://<bucket>/<...keys>`. |
-| `maxSize`  | `number`                                  | `undefined`               | The maximum payload size in bytes that can be stored in S3. If the payload exceeds this size, it will not be stored in S3. |
-| `logger`   | `Logger`                                  | `undefined`               | The logger function to use for logging. |
+- **`bucket`**: `string | Fn<string>` (**Required**)
+  
+  The name of the S3 bucket to store the payloads.
+
+- **`key`**: `string | Fn<string>` (default: `randomUUID`)
+  
+  The key to store the payload in the bucket. Defaults to `randomUUID()` from `node:crypto`.
+
+- **`config`**: `S3ClientConfig | Fn<S3ClientConfig>` (default: `{}`)
+  
+  The [S3 client configuration](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-client-s3/Interface/S3ClientConfig/).
+
+- **`format`**: `S3ReferenceFormat` (default: `url-s3-global-path`)
+  
+  The format of the S3 reference: `arn`, `object` or one of the URL formats from [amazon-s3-url](https://www.npmjs.com/package/amazon-s3-url) package. Defaults to S3 URI format `s3://<bucket>/<...keys>`.
+
+- **`maxSize`**: `number` (default: `undefined`)
+  
+  The maximum payload size in bytes that can be stored in S3. If the payload exceeds this size, it will not be stored in S3.
+
+- **`logger`**: `Logger` (default: `undefined`)
+  
+  The logger function to use for logging.
 
 ### Custom Store
 
