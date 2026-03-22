@@ -3,7 +3,7 @@
 	"version": "0.3.0",
 	"description": "Amazon S3 Store for middy-store",
 	"engines": {
-		"node": ">=18"
+		"node": ">=22"
 	},
 	"type": "module",
 	"module": "./src/index.ts",
@@ -41,7 +41,7 @@
 		"middy-store": "workspace:*"
 	},
 	"devDependencies": {
-		"@middy/core": "^5.2.3",
+		"@middy/core": "^7.2.1",
 		"@smithy/types": "^2.10.1"
 	}
 }

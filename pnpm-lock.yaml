@@ -46,7 +46,7 @@ importers:
         version: 20.19.8
       '@vitest/coverage-v8':
         specifier: ^2.0.3
-        version: 2.1.8(vitest@2.1.8)
+        version: 2.1.8(vitest@2.1.8(@types/node@20.19.8)(@vitest/ui@2.1.8))
       '@vitest/ui':
         specifier: ^2.0.3
         version: 2.1.8(vitest@2.1.8)
@@ -79,7 +79,7 @@ importers:
         version: 2.1.8(@types/node@20.19.8)(@vitest/ui@2.1.8)
       vitest-github-actions-reporter:
         specifier: ^0.11.1
-        version: 0.11.1(vitest@2.1.8)
+        version: 0.11.1(vitest@2.1.8(@types/node@20.19.8)(@vitest/ui@2.1.8))
 
   examples/custom-store:
     dependencies:
@@ -121,8 +121,8 @@ importers:
         version: 10.0.3(typescript@5.7.2)
     devDependencies:
       '@middy/core':
-        specifier: ^5.2.3
-        version: 5.5.1
+        specifier: ^7.2.1
+        version: 7.2.1
       '@types/lodash.get':
         specifier: ^4.4.9
         version: 4.4.9
@@ -140,8 +140,8 @@ importers:
         version: link:../core
     devDependencies:
       '@middy/core':
-        specifier: ^5.2.3
-        version: 5.5.1
+        specifier: ^7.2.1
+        version: 7.2.1
       '@smithy/types':
         specifier: ^2.10.1
         version: 2.12.0
@@ -162,8 +162,8 @@ importers:
         version: link:../core
     devDependencies:
       '@middy/core':
-        specifier: ^5.2.3
-        version: 5.5.1
+        specifier: ^7.2.1
+        version: 7.2.1
       '@smithy/types':
         specifier: ^2.10.1
         version: 2.12.0
@@ -1188,6 +1188,19 @@ packages:
   '@middy/core@5.5.1':
     resolution: {integrity: sha512-D7q0WXoH2HKyAqw+EN9DuKTp1j+Yr1Aup4m+ALdkyx60fZNGYOFXIx8rKO+ipPC9BBqjbig/zloyIHCZhdK0xg==}
     engines: {node: '>=18'}
+
+  '@middy/core@7.2.1':
+    resolution: {integrity: sha512-KFtxLUhHQcBezrusBt5F2VKYY/p3Po2rM2OByyeZsqpzSY9D8iapsmJGaiHFgXbfuEUS5B0BxTXixFcxjChLUg==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@aws/durable-execution-sdk-js': ^1.0.0
+    peerDependenciesMeta:
+      '@aws/durable-execution-sdk-js':
+        optional: true
+
+  '@middy/util@7.2.1':
+    resolution: {integrity: sha512-vwtRPxQ5stQFR8Ulfsuqt8GgPJX6iXrF/9SiOTsJzw2nliNu/aPcZ8DR6sPj+gFar/QdUJuym6iyjevfeMNiFA==}
+    engines: {node: '>=22'}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -5247,6 +5260,12 @@ snapshots:
     dependencies:
       '@datastream/core': 0.0.38
 
+  '@middy/core@7.2.1':
+    dependencies:
+      '@middy/util': 7.2.1
+
+  '@middy/util@7.2.1': {}
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -6086,7 +6105,7 @@ snapshots:
     dependencies:
       '@types/node': 18.19.68
 
-  '@vitest/coverage-v8@2.1.8(vitest@2.1.8)':
+  '@vitest/coverage-v8@2.1.8(vitest@2.1.8(@types/node@20.19.8)(@vitest/ui@2.1.8))':
     dependencies:
       '@ampproject/remapping': 2.3.0
       '@bcoe/v8-coverage': 0.2.3
@@ -8156,7 +8175,7 @@ snapshots:
       '@types/node': 20.19.8
       fsevents: 2.3.3
 
-  vitest-github-actions-reporter@0.11.1(vitest@2.1.8):
+  vitest-github-actions-reporter@0.11.1(vitest@2.1.8(@types/node@20.19.8)(@vitest/ui@2.1.8)):
     dependencies:
       '@actions/core': 1.10.1
       vitest: 2.1.8(@types/node@20.19.8)(@vitest/ui@2.1.8)

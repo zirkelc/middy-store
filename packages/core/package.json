@@ -4,7 +4,7 @@
 	"description": "Middleware for Lambda that automatically stores and loads payloads from and to a Store like Amazon S3 or others",
 	"type": "module",
 	"engines": {
-		"node": ">=18"
+		"node": ">=22"
 	},
 	"module": "./src/index.ts",
 	"exports": {
@@ -43,12 +43,12 @@
 		"ts-essentials": "^10.0.3"
 	},
 	"devDependencies": {
-		"@middy/core": "^5.2.3",
+		"@middy/core": "^7.2.1",
 		"@types/lodash.get": "^4.4.9",
 		"@types/lodash.set": "^4.3.9",
 		"@types/lodash.topath": "^4.5.9"
 	},
 	"peerDependencies": {
-		"@middy/core": ">= 5.0.0"
+		"@middy/core": ">= 7.0.0"
 	}
 }
