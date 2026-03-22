@@ -1,5 +1,16 @@
 # middy-store-dynamodb
 
+## 1.0.0
+
+### Major Changes
+
+- [`810a3dd`](https://github.com/zirkelc/middy-store/commit/810a3ddf1d2f1d54b77e47eb9ac1963df2883def) Thanks [@zirkelc](https://github.com/zirkelc)! - Upgrade to middy v7. This is a breaking change because the minimum required Node.js version is now >= 22 and the peer dependency for `@middy/core` is now >= 7.0.0.
+
+### Patch Changes
+
+- Updated dependencies [[`810a3dd`](https://github.com/zirkelc/middy-store/commit/810a3ddf1d2f1d54b77e47eb9ac1963df2883def)]:
+  - middy-store@1.0.0
+
 ## 0.1.2
 
 ### Patch Changes
