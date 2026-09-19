@@ -1,5 +1,12 @@
 # middy-store-s3
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [[`caaf33b`](https://github.com/zirkelc/middy-store/commit/caaf33bac7956271a0e430939dd01316853cd302)]:
+  - middy-store@1.0.1
+
 ## 1.0.0
 
 ### Major Changes
