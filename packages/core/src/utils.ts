@@ -7,6 +7,13 @@ import { MIDDY_STORE } from "./store.js";
 export const VALUE_NOT_FOUND = Symbol("VALUE_NOT_FOUND");
 
 /**
+ * The maximum string length in V8 is 0x1fffffe8 characters (~512MB).
+ * Used as the fallback size of payloads that are too large to be stringified.
+ * @see https://github.com/v8/v8/blob/main/include/v8-primitive.h
+ */
+const V8_MAX_STRING_LENGTH = 0x1fffffe8; // 536870888 characters
+
+/**
  * Returns true if the value is an object and not null.
  */
 export function isObject(value: unknown): value is Record<string, unknown> {
@@ -80,12 +87,22 @@ export function tryStringifyJSON(object: unknown): string | false {
  * Calculates the UTF-8 byte size of a payload.
  * If the payload is a string, it returns the byte length of the string.
  * If the payload is an object, it stringifies the object and returns the byte length of the JSON string.
+ * If the JSON string would exceed the max string length of V8, it returns the V8 max string length
+ * instead of throwing, because the payload is at least that large.
  */
 export function calculateByteSize(payload: unknown) {
 	if (typeof payload === "string") return Buffer.byteLength(payload, "utf8");
 
-	if (typeof payload === "object")
-		return Buffer.byteLength(JSON.stringify(payload), "utf8");
+	if (typeof payload === "object") {
+		try {
+			return Buffer.byteLength(JSON.stringify(payload), "utf8");
+		} catch (error) {
+			// V8 throws `RangeError: Invalid string length` if the JSON string exceeds its max string length
+			if (error instanceof RangeError) return V8_MAX_STRING_LENGTH;
+
+			throw error;
+		}
+	}
 
 	throw new Error(`Unsupported payload type: ${typeof payload}`);
 }

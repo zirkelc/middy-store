@@ -994,6 +994,99 @@ describe("store", () => {
 	});
 });
 
+describe("store huge output", () => {
+	const RANGE_ERROR_MESSAGE = "Invalid string length";
+
+	/**
+	 * Makes `JSON.stringify` throw the V8 `RangeError` for the given value only,
+	 * to simulate an output that exceeds the max string length without allocating it.
+	 */
+	const mockStringifyRangeError = (hugeValue: unknown) => {
+		const originalStringify = JSON.stringify;
+		return vi
+			.spyOn(JSON, "stringify")
+			.mockImplementation((value, replacer, space) => {
+				if (value === hugeValue) throw new RangeError(RANGE_ERROR_MESSAGE);
+				return originalStringify(value, replacer as any, space);
+			});
+	};
+
+	test("should not calculate the size of the full output if minSize is zero", async () => {
+		// Arrange
+		const reference = { store: "mock" };
+		const output = { id: "foo", payload: [{ a: 1 }, { b: 2 }] };
+
+		vi.mocked(mockStore.canStore).mockReturnValue(true);
+		vi.mocked(mockStore.store).mockResolvedValue(reference);
+
+		const handler = useStore({
+			stores: [mockStore],
+			loadingOptions: { skip: true },
+			storingOptions: {
+				minSize: Sizes.ZERO,
+				selector: "payload.*",
+			},
+		});
+		const stringifySpy = mockStringifyRangeError(output);
+
+		try {
+			// Act
+			const result = await handler(output, context);
+
+			// Assert
+			expect(result).toEqual({
+				id: "foo",
+				payload: [createReference(reference), createReference(reference)],
+			});
+			expect(
+				stringifySpy.mock.calls.filter(([value]) => value === output).length,
+			).toBe(0);
+			expect(vi.mocked(mockStore.store).mock.calls.length).toBe(2);
+			expect(vi.mocked(mockStore.store).mock.calls[0]).toEqual([
+				{ payload: { a: 1 }, byteSize: calculateByteSize({ a: 1 }) },
+			]);
+			expect(vi.mocked(mockStore.store).mock.calls[1]).toEqual([
+				{ payload: { b: 2 }, byteSize: calculateByteSize({ b: 2 }) },
+			]);
+		} finally {
+			stringifySpy.mockRestore();
+		}
+	});
+
+	test("should store output if its size cannot be calculated and minSize is not zero", async () => {
+		// Arrange
+		const reference = { store: "mock" };
+		const output = { id: "foo", payload: [{ a: 1 }, { b: 2 }] };
+
+		vi.mocked(mockStore.canStore).mockReturnValue(true);
+		vi.mocked(mockStore.store).mockResolvedValue(reference);
+
+		const handler = useStore({
+			stores: [mockStore],
+			loadingOptions: { skip: true },
+			storingOptions: {
+				minSize: Sizes.LAMBDA_SYNC,
+				selector: "payload.*",
+			},
+		});
+		const stringifySpy = mockStringifyRangeError(output);
+
+		try {
+			// Act
+			const result = await handler(output, context);
+
+			// Assert
+			expect(result).toEqual({
+				id: "foo",
+				payload: [createReference(reference), createReference(reference)],
+			});
+			expect(vi.mocked(mockStore.store).mock.calls.length).toBe(2);
+		} finally {
+			stringifySpy.mockRestore();
+		}
+	});
+});
+
 describe("Sizes constants", () => {
 	test("LAMBDA_SYNC should be 6MB", () => {
 		expect(Sizes.LAMBDA_SYNC).toEqual(6 * 1024 * 1024);
