@@ -364,25 +364,29 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				return;
 			}
 
-			// check if response size exceeds the minimum size upon which the response should be stored
-			const byteSize = calculateByteSize(output);
-
 			if (minSize === Sizes.INFINITY) {
-				logger(
-					`Output size of ${byteSize} bytes is less than ${minSize} bytes, skipping store`,
-				);
+				logger(`Minimum size is ${minSize} bytes, skipping store`);
 				return;
 			}
 
-			if (minSize < byteSize) {
-				logger(
-					`Output size of ${byteSize} bytes is greater than ${minSize} bytes, save in store`,
-				);
+			// the size of the full output is only needed to compare it against a non-zero minimum size.
+			// skipping it avoids stringifying a huge output only to store it anyway.
+			if (minSize === Sizes.ZERO) {
+				logger(`Minimum size is ${minSize} bytes, save in store`);
 			} else {
-				logger(
-					`Output size of ${byteSize} bytes is less than ${minSize} bytes, skipping store`,
-				);
-				return;
+				// check if response size exceeds the minimum size upon which the response should be stored
+				const byteSize = calculateByteSize(output);
+
+				if (minSize < byteSize) {
+					logger(
+						`Output size of ${byteSize} bytes is greater than ${minSize} bytes, save in store`,
+					);
+				} else {
+					logger(
+						`Output size of ${byteSize} bytes is less than ${minSize} bytes, skipping store`,
+					);
+					return;
+				}
 			}
 
 			if (isString(output) && selector) {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { randomStringInBytes } from "../src/internal.js";
 import { MIDDY_STORE, Sizes } from "../src/store.js";
 import {
@@ -76,6 +76,37 @@ describe("calculateByteSize", () => {
 		const payload = 42;
 
 		expect(() => calculateByteSize(payload)).toThrowError();
+	});
+
+	test("should fall back to the V8 max string length if the object is too large to stringify", async () => {
+		// Arrange
+		const payload = { foo: "bar" };
+		const stringifySpy = vi.spyOn(JSON, "stringify").mockImplementation(() => {
+			throw new RangeError("Invalid string length");
+		});
+
+		try {
+			// Act
+			const result = calculateByteSize(payload);
+
+			// Assert
+			expect(result).toBe(0x1fffffe8);
+			expect(stringifySpy.mock.calls[0]).toEqual([payload]);
+		} finally {
+			stringifySpy.mockRestore();
+		}
+	});
+
+	test("should rethrow errors other than RangeError", async () => {
+		// Arrange
+		const payload: Record<string, unknown> = {};
+		payload.self = payload;
+
+		// Act
+		const result = () => calculateByteSize(payload);
+
+		// Assert
+		expect(result).toThrow(TypeError);
 	});
 });
 
