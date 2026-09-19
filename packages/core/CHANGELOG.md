@@ -1,5 +1,11 @@
 # middy-store
 
+## 1.0.1
+
+### Patch Changes
+
+- [#20](https://github.com/zirkelc/middy-store/pull/20) [`caaf33b`](https://github.com/zirkelc/middy-store/commit/caaf33bac7956271a0e430939dd01316853cd302) Thanks [@zirkelc](https://github.com/zirkelc)! - Fix `RangeError: Invalid string length` in the after-hook for huge outputs. With `minSize: Sizes.ZERO`, the size of the full output is no longer calculated. If an output is too large to stringify, its size falls back to the V8 max string length (~512MB) instead of throwing.
+
 ## 1.0.0
 
 ### Major Changes
