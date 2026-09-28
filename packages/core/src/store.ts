@@ -105,7 +105,6 @@ export interface StoreInterface<TPayload = unknown, TReference = unknown> {
 	delete?: (args: LoadArgs<TReference>) => Promise<void>;
 }
 
-// TODO add option to clone instead of mutate input/output
 export interface MiddyStoreOptions<TInput = unknown, TOutput = unknown> {
 	stores: Array<StoreInterface<any, any>>;
 	loadingOptions?: LoadingOptions<TInput>;
@@ -249,9 +248,36 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 			// Initialize array to track loaded references for potential deletion
 			request.internal.loadedReferences = [];
 
+			/**
+			 * The input is never mutated. Every replacement is applied to the latest event,
+			 * and containers already copied for this event are reused instead of copied again.
+			 */
+			const cloned = new WeakSet<object>();
+
+			/**
+			 * The replacement value of each reference object in the input.
+			 * The same reference object can be reached by more than one path if the input shares it,
+			 * and it must be loaded (and deleted) only once.
+			 */
+			const replacements = new Map<unknown, unknown>();
+
 			let index = 0;
 			for (const path of generateReferencePaths({ input, path: "" })) {
 				logger(`Process reference at ${path}`);
+
+				const node = selectByPath({ source: input, path });
+				if (replacements.has(node)) {
+					logger(`Reference was already processed, reuse its replacement`);
+
+					request.event = replaceByPath({
+						source: request.event as Record<string, unknown>,
+						value: replacements.get(node),
+						path,
+						cloned,
+					}) as TInput;
+
+					continue;
+				}
 
 				const reference = selectByPath({
 					source: input,
@@ -268,10 +294,12 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 						logger(`No store was found to load reference, passthrough input`);
 
 						// replace the middy-store reference with the raw reference
+						replacements.set(node, reference);
 						request.event = replaceByPath({
-							source: input,
+							source: request.event as Record<string, unknown>,
 							value: reference,
 							path,
+							cloned,
 						}) as TInput;
 
 						continue;
@@ -301,10 +329,12 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				}
 
 				// replace the reference with the payload
+				replacements.set(node, payload);
 				request.event = replaceByPath({
-					source: input,
+					source: request.event as Record<string, unknown>,
 					value: payload,
 					path,
+					cloned,
 				}) as TInput;
 
 				logger(`Replaced reference with payload`, { path, payload });
@@ -393,6 +423,12 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 				logger(`Output is a string, ignoring selector`);
 			}
 
+			/**
+			 * The output is never mutated. Every replacement is applied to the latest response,
+			 * and containers already copied for this response are reused instead of copied again.
+			 */
+			const cloned = new WeakSet<object>();
+
 			let index = 0;
 			for (const path of generatePayloadPaths({ output, selector })) {
 				logger(`Process payload at ${path}`);
@@ -435,9 +471,10 @@ export const middyStore = <TInput = unknown, TOutput = unknown>(
 
 				// replace the response with a reference to the stored response
 				request.response = replaceByPath({
-					source: output,
+					source: request.response as Record<string, unknown> | string,
 					value: reference,
 					path,
+					cloned,
 				}) as TOutput;
 
 				logger(`Replaced payload with reference`, {

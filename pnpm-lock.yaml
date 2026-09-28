@@ -110,9 +110,6 @@ importers:
       lodash.get:
         specifier: ^4.4.2
         version: 4.4.2
-      lodash.set:
-        specifier: ^4.3.2
-        version: 4.3.2
       lodash.topath:
         specifier: ^4.5.2
         version: 4.5.2
@@ -126,9 +123,6 @@ importers:
       '@types/lodash.get':
         specifier: ^4.4.9
         version: 4.4.9
-      '@types/lodash.set':
-        specifier: ^4.3.9
-        version: 4.3.9
       '@types/lodash.topath':
         specifier: ^4.5.9
         version: 4.5.9
@@ -2837,9 +2831,6 @@ packages:
 
   lodash.memoize@4.1.2:
     resolution: {integrity: sha512-t7j+NzmgnQzTAYXcsHYLgimltOV1MXHtlOWf6GjL9Kj8GK5FInw5JotxvbOs+IvV1/Dzo04/fCGfLVs7aXb4Ag==}
-
-  lodash.set@4.3.2:
-    resolution: {integrity: sha512-4hNPN5jlm/N/HLMCO43v8BXKq9Z7QdAGc/VGrRD61w8gN9g/6jF9A4L1pbUgBLCffi0w9VsXfTOij5x8iTyFvg==}
 
   lodash.sortby@4.7.0:
     resolution: {integrity: sha512-HDWXG8isMntAyRF5vZ7xKuEvOhT4AhlRt/3czTSjvGUxjYCBVRQY48ViDHyfYz9VIoBkW4TMGQNapx+l3RUwdA==}
@@ -7090,8 +7081,6 @@ snapshots:
   lodash.get@4.4.2: {}
 
   lodash.memoize@4.1.2: {}
-
-  lodash.set@4.3.2: {}
 
   lodash.sortby@4.7.0: {}
 

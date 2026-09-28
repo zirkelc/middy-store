@@ -38,14 +38,12 @@
 	"license": "MIT",
 	"dependencies": {
 		"lodash.get": "^4.4.2",
-		"lodash.set": "^4.3.2",
 		"lodash.topath": "^4.5.2",
 		"ts-essentials": "^10.0.3"
 	},
 	"devDependencies": {
 		"@middy/core": "^7.2.1",
 		"@types/lodash.get": "^4.4.9",
-		"@types/lodash.set": "^4.3.9",
 		"@types/lodash.topath": "^4.5.9"
 	},
 	"peerDependencies": {

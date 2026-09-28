@@ -1328,3 +1328,180 @@ describe("deleteAfterLoad", () => {
 		expect(mockStoreWithDelete.delete).not.toHaveBeenCalled();
 	});
 });
+
+describe("copy-on-write", () => {
+	const loadingStore = (): StoreInterface => ({
+		name: "loading",
+		canLoad: () => true,
+		load: async ({ reference }) => ({ loaded: (reference as any).index }),
+		canStore: () => false,
+		store: async () => {
+			throw new Error("not implemented");
+		},
+	});
+
+	const storingStore = (): StoreInterface => {
+		let index = 0;
+		return {
+			name: "storing",
+			canLoad: () => false,
+			load: async () => {
+				throw new Error("not implemented");
+			},
+			canStore: () => true,
+			store: async () => ({ index: index++ }),
+		};
+	};
+
+	test("should not mutate the caller's input when loading references", async () => {
+		// Arrange
+		const ref0 = createReference({ index: 0 });
+		const ref1 = createReference({ index: 1 });
+		const batch = [ref0, ref1];
+		const event = { id: "foo", payload: batch };
+		const handler = useStore({ stores: [loadingStore()] });
+
+		// Act
+		const result = await handler(event, context);
+
+		// Assert
+		expect(result).toEqual({
+			id: "foo",
+			payload: [{ loaded: 0 }, { loaded: 1 }],
+		});
+		expect(event.payload).toBe(batch);
+		expect(batch).toEqual([ref0, ref1]);
+		expect(batch[0]).toBe(ref0);
+		expect(batch[1]).toBe(ref1);
+	});
+
+	test("should not mutate the caller's input when passing references through", async () => {
+		// Arrange
+		const ref0 = createReference({ index: 0 });
+		const ref1 = createReference({ index: 1 });
+		const batch = [ref0, ref1];
+		const event = { payload: batch };
+		const handler = useStore({
+			stores: [],
+			loadingOptions: { passThrough: true },
+		});
+
+		// Act
+		const result = await handler(event, context);
+
+		// Assert
+		expect(result).toEqual({ payload: [{ index: 0 }, { index: 1 }] });
+		expect(batch).toEqual([ref0, ref1]);
+	});
+
+	test("should load references nested at different depths", async () => {
+		// Arrange
+		const event = {
+			a: createReference({ index: 0 }),
+			b: {
+				c: [
+					createReference({ index: 1 }),
+					{ d: createReference({ index: 2 }) },
+				],
+			},
+		};
+		const original = structuredClone(event);
+		const handler = useStore({ stores: [loadingStore()] });
+
+		// Act
+		const result = await handler(event, context);
+
+		// Assert
+		expect(result).toEqual({
+			a: { loaded: 0 },
+			b: { c: [{ loaded: 1 }, { d: { loaded: 2 } }] },
+		});
+		expect(event).toEqual(original);
+	});
+
+	test("should load and delete a shared reference only once", async () => {
+		// Arrange
+		const shared = { c: createReference({ index: 0 }) };
+		const event = { a: shared, b: shared };
+		const store: StoreInterface = {
+			...loadingStore(),
+			load: vi.fn(async () => ({ loaded: 0 })),
+			canDelete: () => true,
+			delete: vi.fn(async () => {}),
+		};
+		const handler = useStore({
+			stores: [store],
+			loadingOptions: { deleteAfterLoad: true },
+		});
+
+		// Act
+		const result = await handler(event, context);
+
+		// Assert
+		expect(result).toEqual({
+			a: { c: { loaded: 0 } },
+			b: { c: { loaded: 0 } },
+		});
+		expect(vi.mocked(store.load).mock.calls.length).toBe(1);
+		expect(vi.mocked(store.delete!).mock.calls.length).toBe(1);
+		expect(shared).toEqual({ c: createReference({ index: 0 }) });
+	});
+
+	test("should not mutate the handler's output when storing payloads", async () => {
+		// Arrange
+		const item0 = { foo: "bar" };
+		const item1 = { baz: "qux" };
+		const items = [item0, item1];
+		const output = { id: "foo", payload: items };
+		const handler = middy()
+			.use(
+				middyStore({
+					stores: [storingStore()],
+					storingOptions: { minSize: Sizes.ZERO, selector: "payload" },
+				}),
+			)
+			.handler(async () => output);
+
+		// Act
+		const result = await handler({}, context);
+
+		// Assert
+		expect(result).toEqual({
+			id: "foo",
+			payload: createReference({ index: 0 }),
+		});
+		expect(output).toEqual({ id: "foo", payload: [item0, item1] });
+		expect(output.payload).toBe(items);
+	});
+
+	test.each(["payload.*", "payload[*]"])(
+		"should not mutate the handler's output when storing multiple payloads with selector %s",
+		async (selector) => {
+			// Arrange
+			const item0 = { foo: "bar" };
+			const item1 = { baz: "qux" };
+			const items = [item0, item1];
+			const output = { id: "foo", payload: items };
+			const handler = middy()
+				.use(
+					middyStore({
+						stores: [storingStore()],
+						storingOptions: { minSize: Sizes.ZERO, selector },
+					}),
+				)
+				.handler(async () => output);
+
+			// Act
+			const result = await handler({}, context);
+
+			// Assert
+			expect(result).toEqual({
+				id: "foo",
+				payload: [createReference({ index: 0 }), createReference({ index: 1 })],
+			});
+			expect(items).toEqual([item0, item1]);
+			expect(items[0]).toBe(item0);
+			expect(items[1]).toBe(item1);
+		},
+	);
+});

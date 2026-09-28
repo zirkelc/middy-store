@@ -1,5 +1,4 @@
 import get from "lodash.get";
-import set from "lodash.set";
 import toPath from "lodash.topath";
 import type { MiddyStore, Resolveable } from "./store.js";
 import { MIDDY_STORE } from "./store.js";
@@ -141,24 +140,100 @@ type ReplaceByPathArgs = {
 	source: Record<string, unknown> | string;
 	value: unknown;
 	path: string;
+	/**
+	 * Containers that were already copied by a previous replacement on the same result.
+	 * They are owned by the caller and are updated in place instead of being copied again.
+	 * Pass the same set to consecutive calls to avoid copying the same containers repeatedly.
+	 */
+	cloned?: WeakSet<object>;
 };
 
 /**
+ * Matches a path key that addresses an array index.
+ * A missing container before such a key is created as an array, otherwise as an object.
+ */
+const INDEX_KEY = /^(?:0|[1-9]\d*)$/;
+
+/**
+ * Sets an own data property on the target.
+ * A plain assignment would call the `__proto__` setter instead of creating an own `__proto__` key.
+ */
+function defineValue(target: object, key: string, value: unknown) {
+	Object.defineProperty(target, key, {
+		value,
+		writable: true,
+		enumerable: true,
+		configurable: true,
+	});
+}
+
+/**
+ * Returns a shallow copy of the object or array and registers it in `cloned`.
+ * Returns the object itself if it was already copied.
+ * The copy keeps the prototype and all own property descriptors of the source,
+ * including accessors, non-index properties of arrays, and own `__proto__` keys.
+ * Private class fields cannot be copied.
+ */
+function cloneOnce(
+	source: Record<string, unknown>,
+	cloned: WeakSet<object>,
+): Record<string, unknown> {
+	if (cloned.has(source)) return source;
+
+	const copy = Array.isArray(source)
+		? []
+		: Object.create(Object.getPrototypeOf(source));
+
+	Object.defineProperties(copy, Object.getOwnPropertyDescriptors(source));
+
+	cloned.add(copy);
+
+	return copy;
+}
+
+/**
  * Replaces the value at the given `path` in the `source` object with the new `value`.
- * The `source` object is mutated and returned.
+ * The `source` object is not mutated: each object or array along the `path` is shallow copied,
+ * and the new root is returned. Values that are not on the `path` are shared with the `source`.
+ * Missing or primitive values along the `path` are replaced by new objects or arrays.
  * If the `path` is empty, it returns the new `value`.
  */
 export function replaceByPath({
 	source,
 	value,
 	path,
+	cloned = new WeakSet(),
 }: ReplaceByPathArgs): unknown {
 	if (isString(source)) return value;
 
 	const pathArray = toPath(path);
 
-	// TODO option to clone instead of mutate?
-	return pathArray.length === 0 ? value : set(source, pathArray, value);
+	if (pathArray.length === 0) return value;
+
+	const root = cloneOnce(source, cloned);
+
+	let current = root;
+	for (let index = 0; index < pathArray.length - 1; index++) {
+		const key = pathArray[index];
+		const next = current[key];
+
+		if (typeof next === "function") {
+			throw new Error(`Cannot replace a value inside a function at ${path}`);
+		}
+
+		const container = isObject(next)
+			? cloneOnce(next, cloned)
+			: INDEX_KEY.test(pathArray[index + 1])
+				? []
+				: {};
+
+		defineValue(current, key, container);
+		current = container as Record<string, unknown>;
+	}
+
+	defineValue(current, pathArray[pathArray.length - 1], value);
+
+	return root;
 }
 
 type GeneratePathsArgs = {
